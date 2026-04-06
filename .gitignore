@@ -1,0 +1,10 @@
+node_modules/
+merkasats.db
+merkasats.db-shm
+merkasats.db-wal
+photos/
+*.db
+*.db-shm
+*.db-wal
+.env
+.nostr-key

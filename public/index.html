@@ -1,0 +1,1491 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Merca-sats</title>
+  <link rel="icon" href="/logo.jpg">
+  <script src="/nostr-auth.bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <style>
+    :root {
+      --bg: #0f0f0f;
+      --card: #1a1a2e;
+      --accent: #f7931a;
+      --accent2: #e16d00;
+      --text: #e0e0e0;
+      --muted: #888;
+      --border: #2a2a3e;
+      --green: #22c55e;
+      --star: #fbbf24;
+    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .header {
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border-bottom: 2px solid var(--accent);
+      padding: 20px;
+      text-align: center;
+    }
+    .header h1 { font-size: 2.2em; color: var(--accent); }
+    .header h1 span { color: var(--text); }
+    .header p { color: var(--muted); margin-top: 5px; }
+
+    .toolbar {
+      display: flex; gap: 10px; padding: 15px 20px;
+      background: var(--card); border-bottom: 1px solid var(--border);
+      flex-wrap: wrap; align-items: center; justify-content: space-between;
+    }
+    .toolbar-left { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+    .toolbar-right { display: flex; gap: 10px; align-items: center; }
+
+    .search-input {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 14px; border-radius: 8px; font-size: 14px; width: 220px;
+    }
+    .search-input:focus { outline: none; border-color: var(--accent); }
+
+    select {
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      padding: 8px 12px; border-radius: 8px; font-size: 14px;
+    }
+
+    .btn {
+      padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
+      font-size: 14px; font-weight: 600; transition: all 0.2s;
+    }
+    .btn-accent { background: var(--accent); color: #000; }
+    .btn-accent:hover { background: var(--accent2); }
+    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+    .btn-outline:hover { background: var(--accent); color: #000; }
+    .btn-green { background: var(--green); color: #000; }
+
+    .nostr-status {
+      font-size: 13px; color: var(--muted);
+    }
+    .nostr-status.connected { color: var(--green); }
+
+    .main { max-width: 1200px; margin: 0 auto; padding: 20px; }
+
+    .regions-bar {
+      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
+    }
+    .region-chip {
+      padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer;
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+      transition: all 0.2s;
+    }
+    .region-chip:hover, .region-chip.active {
+      border-color: var(--accent); background: rgba(247,147,26,0.1);
+    }
+    .region-chip .count { color: var(--muted); margin-left: 4px; font-size: 11px; }
+
+    .products-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .product-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      overflow: hidden; transition: transform 0.2s, border-color 0.2s;
+    }
+    .product-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+
+    .product-photo {
+      width: 100%; height: 200px; object-fit: cover; background: #222;
+    }
+    .product-photo-placeholder {
+      width: 100%; height: 200px; background: #222;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 3em; color: #444;
+    }
+
+    .product-body { padding: 16px; }
+    .product-title { font-size: 1.1em; font-weight: 700; margin-bottom: 8px; }
+    .product-desc {
+      color: var(--muted); font-size: 0.9em; margin-bottom: 12px;
+      max-height: 60px; overflow: hidden; text-overflow: ellipsis;
+    }
+    .product-price {
+      font-size: 1.3em; font-weight: 800; color: var(--accent); margin-bottom: 10px;
+    }
+    .product-meta {
+      display: flex; justify-content: space-between; align-items: center;
+      font-size: 0.85em; color: var(--muted); padding-top: 10px;
+      border-top: 1px solid var(--border);
+    }
+    .product-seller { display: flex; align-items: center; gap: 6px; }
+    .product-seller a { color: var(--accent); text-decoration: none; }
+    .product-seller a:hover { text-decoration: underline; }
+    .product-region { display: flex; align-items: center; gap: 4px; }
+    .product-source {
+      font-size: 11px; padding: 2px 8px; border-radius: 10px;
+      background: rgba(247,147,26,0.15); color: var(--accent);
+    }
+
+    .stars { color: var(--star); font-size: 14px; }
+    .stars-input { cursor: pointer; font-size: 22px; }
+    .stars-input span { transition: color 0.1s; }
+    .stars-input span:hover, .stars-input span.active { color: var(--star); }
+
+    /* Modal */
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;
+    }
+    .modal h2 { color: var(--accent); margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: var(--muted); }
+    .form-group input, .form-group textarea, .form-group select {
+      width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border);
+      border-radius: 8px; color: var(--text); font-family: inherit; font-size: 14px;
+    }
+    .form-group textarea { min-height: 80px; resize: vertical; }
+    .form-group input:focus, .form-group textarea:focus {
+      outline: none; border-color: var(--accent);
+    }
+    .pow-status { font-size: 13px; color: var(--muted); margin-top: 8px; }
+
+    /* Rating modal */
+    .seller-profile { text-align: center; margin-bottom: 20px; }
+    .seller-profile h3 { color: var(--accent); font-size: 1.3em; }
+
+    .empty-state {
+      text-align: center; padding: 60px 20px; color: var(--muted);
+    }
+    .empty-state p { font-size: 1.1em; margin-bottom: 10px; }
+
+    /* Sidebar */
+    .content-wrapper {
+      display: flex; gap: 20px; max-width: 1400px; margin: 0 auto; padding: 20px;
+    }
+    .main { flex: 1; padding: 0; max-width: none; margin: 0; }
+    .sidebar {
+      width: 280px; flex-shrink: 0;
+    }
+    .sidebar-card {
+      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px; position: sticky; top: 20px;
+    }
+    .sidebar-card h3 {
+      color: var(--accent); font-size: 1em; margin-bottom: 12px;
+      padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .user-list { max-height: 70vh; overflow-y: auto; }
+    .user-item {
+      display: flex; align-items: center; gap: 10px; padding: 8px 6px;
+      border-bottom: 1px solid var(--border); cursor: pointer;
+      transition: background 0.2s; border-radius: 6px;
+    }
+    .user-item:hover { background: rgba(247,147,26,0.08); }
+    .user-item:last-child { border-bottom: none; }
+    .user-avatar {
+      width: 36px; height: 36px; border-radius: 50%; background: var(--border);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: var(--accent); flex-shrink: 0;
+    }
+    .user-info-col { flex: 1; min-width: 0; }
+    .user-name {
+      font-size: 13px; font-weight: 600; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .user-meta-line {
+      font-size: 11px; color: var(--muted);
+      display: flex; gap: 6px; align-items: center;
+    }
+    .user-stars { color: var(--star); font-size: 11px; }
+
+    @media (max-width: 900px) {
+      .content-wrapper { flex-direction: column; padding: 10px; }
+      .sidebar { width: 100%; order: 2; }
+      .sidebar-card { position: static; }
+      .user-list { max-height: 200px; }
+    }
+
+    .footer {
+      text-align: center; padding: 30px; color: var(--muted); font-size: 13px;
+      border-top: 1px solid var(--border); margin-top: 40px;
+    }
+    .footer a { color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 768px) {
+      .header { padding: 15px 10px; }
+      .header h1 { font-size: 1.8em; }
+      .header p { font-size: 13px; }
+
+      .toolbar {
+        flex-direction: column; padding: 10px;
+        gap: 8px;
+      }
+      .toolbar-left, .toolbar-right {
+        width: 100%; justify-content: stretch;
+      }
+      .toolbar-left { flex-direction: column; }
+      .toolbar-right { justify-content: space-between; }
+      .search-input { width: 100%; font-size: 16px; }
+      select { width: 100%; font-size: 16px; }
+      .btn { padding: 10px 14px; font-size: 14px; flex: 1; text-align: center; }
+      .nostr-status { font-size: 11px; }
+
+      .main { padding: 10px; }
+
+      .regions-bar {
+        gap: 6px; overflow-x: auto; flex-wrap: nowrap;
+        padding-bottom: 8px; -webkit-overflow-scrolling: touch;
+      }
+      .region-chip { white-space: nowrap; flex-shrink: 0; font-size: 12px; padding: 5px 10px; }
+
+      .products-grid {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+
+      .product-photo, .product-photo-placeholder { height: 180px; }
+      .product-body { padding: 12px; }
+      .product-title { font-size: 1em; }
+      .product-price { font-size: 1.2em; }
+      .product-meta { flex-direction: column; gap: 6px; align-items: flex-start; }
+
+      .modal { padding: 20px; margin: 10px; border-radius: 12px; }
+      .modal h2 { font-size: 1.3em; }
+      .form-group input, .form-group textarea, .form-group select { font-size: 16px; }
+
+      .footer { padding: 20px 10px; font-size: 12px; }
+    }
+
+    @media (max-width: 400px) {
+      .header h1 { font-size: 1.5em; }
+      .products-grid { grid-template-columns: 1fr; }
+      .product-photo, .product-photo-placeholder { height: 150px; }
+      .toolbar-right { flex-direction: column; gap: 6px; }
+      .toolbar-right .btn { width: 100%; }
+    }
+
+    /* Smooth scrolling for regions bar on mobile */
+    .regions-bar::-webkit-scrollbar { display: none; }
+    .regions-bar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <img src="/logo.jpg" alt="Merca-sats" style="height:80px;border-radius:12px;margin-bottom:8px">
+  <h1>Merca<span>-sats</span></h1>
+  <p>Mercat P2P de Trobades Bitcoiners</p>
+</div>
+
+<div class="toolbar">
+  <div class="toolbar-left">
+    <input type="text" class="search-input" id="searchInput" placeholder="Buscar productes...">
+    <select id="categoryFilter">
+      <option value="">Totes les categories</option>
+    </select>
+  </div>
+  <div class="toolbar-right">
+    <span class="nostr-status" id="nostrStatus"></span>
+    <button class="btn btn-outline" id="nostrBtn" onclick="handleLogin()">🔐 Login</button>
+    <button class="btn btn-outline" id="profileBtn" onclick="openMyProfile()" style="display:none">👤 Perfil</button>
+    <button class="btn btn-accent" onclick="openNewProduct()">+ Publicar</button>
+  </div>
+</div>
+
+<div class="content-wrapper">
+  <div class="main">
+    <div class="regions-bar" id="regionsBar"></div>
+    <div class="products-grid" id="productsGrid">
+      <div class="empty-state">
+        <p>Carregant productes...</p>
+      </div>
+    </div>
+  </div>
+  <div class="sidebar">
+    <div class="sidebar-card">
+      <h3>👥 Usuaris registrats</h3>
+      <div class="user-list" id="userList">
+        <div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Carregant...</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <p>Merca-sats — Mercat P2P de la comunitat <a href="https://t.me/trobadesbitcoiners" target="_blank">Trobades Bitcoiners</a></p>
+  <p>Pagaments en Bitcoin ⚡</p>
+</div>
+
+<!-- New Product Modal -->
+<div class="modal-overlay" id="newProductModal">
+  <div class="modal">
+    <h2>📦 Publicar producte</h2>
+    <div class="form-group">
+      <label>Titol *</label>
+      <input type="text" id="npTitle" placeholder="Ex: Arduino Uno R3">
+    </div>
+    <div class="form-group">
+      <label>Descripció</label>
+      <textarea id="npDesc" placeholder="Detalls del producte..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Preu *</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="npPrice" placeholder="10000" style="flex:1">
+        <select id="npCurrency" style="width:100px">
+          <option value="sats">sats</option>
+          <option value="EUR">EUR</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Categoria</label>
+      <select id="npCategory">
+        <option value="">Sense especificar</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Zona</label>
+      <select id="npRegion">
+        <option value="">Sense especificar</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Telegram @ (per contactar)</label>
+      <input type="text" id="npTelegram" placeholder="@elteuuser">
+    </div>
+    <div class="form-group">
+      <label>Foto (URL)</label>
+      <input type="text" id="npPhoto" placeholder="https://...">
+    </div>
+    <div class="pow-status" id="powStatus"></div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn btn-accent" onclick="submitProduct()" id="submitBtn">Publicar</button>
+      <button class="btn btn-outline" onclick="closeModal('newProductModal')">Cancel·lar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Product Detail Modal -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal" style="max-width:600px">
+    <div id="productDetailPhotos" style="margin:-30px -30px 16px -30px;overflow:hidden;border-radius:16px 16px 0 0"></div>
+    <h2 id="productDetailTitle" style="color:var(--accent);margin-bottom:4px"></h2>
+    <div id="productDetailPrice" style="font-size:1.4em;font-weight:800;color:var(--accent);margin-bottom:12px"></div>
+    <div id="productDetailDesc" style="color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.5"></div>
+    <div id="productDetailMeta" style="font-size:13px;color:var(--muted);margin-bottom:16px;padding:12px;background:var(--bg);border-radius:8px"></div>
+    <div id="productDetailSeller" style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:12px"></div>
+    <div id="productDetailRating" style="border-top:1px solid var(--border);padding-top:16px"></div>
+    <div id="productDetailDelete"></div>
+    <button class="btn btn-outline" onclick="closeModal('productModal')" style="width:100%;margin-top:16px">Tancar</button>
+  </div>
+</div>
+
+<!-- Nostr Login Modal (aqstr-style) -->
+<div class="modal-overlay" id="loginModal">
+  <div class="modal" style="max-width:400px">
+    <div style="text-align:center;margin-bottom:16px">
+      <img src="/logo.jpg" style="height:50px;border-radius:10px;margin-bottom:8px">
+      <h2 style="margin:0">Sign in with Nostr</h2>
+      <p style="color:var(--muted);font-size:13px;margin-top:4px">Connect with your Nostr identity</p>
+    </div>
+
+    <!-- Tabs -->
+    <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px">
+      <button onclick="switchLoginTab('extension')" id="tabExt" class="btn" style="flex:1;border-radius:0;border-bottom:2px solid var(--accent);background:none;color:var(--text)">Browser Extension</button>
+      <button onclick="switchLoginTab('connect')" id="tabConnect" class="btn" style="flex:1;border-radius:0;border-bottom:2px solid transparent;background:none;color:var(--muted)">Nostr Connect</button>
+    </div>
+
+    <!-- Extension Tab -->
+    <div id="panelExtension" style="text-align:center;padding:20px 0">
+      <div id="extStatus"></div>
+    </div>
+
+    <!-- Nostr Connect Tab -->
+    <div id="panelConnect" style="display:none;text-align:center;padding:10px 0">
+      <div id="qrContainer" style="background:#fff;display:inline-block;padding:8px;border-radius:12px;margin-bottom:12px">
+        <canvas id="qrCanvas"></canvas>
+      </div>
+      <div id="connectStatus" style="margin-bottom:12px">
+        <a id="amberLink" href="#" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#F1A026;color:#000;font-weight:600;border-radius:8px;text-decoration:none;margin-bottom:8px">🟡 Login with Amber</a>
+      </div>
+      <div id="connectWaiting" style="display:none;color:var(--muted);font-size:13px">
+        <div style="display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-right:8px;vertical-align:middle"></div>
+        Waiting for connection...
+      </div>
+      <button onclick="navigator.clipboard.writeText(window._connStr);this.textContent='✅ Copied!';setTimeout(()=>{this.textContent='📋 Copy connection string'},2000)" id="copyBtn" style="display:none;margin-top:8px" class="btn btn-outline">📋 Copy connection string</button>
+      <p style="color:var(--muted);font-size:12px;margin-top:12px">Scan with Amber, Primal, or any NIP-46 signer</p>
+    </div>
+
+    <!-- Error/Success -->
+    <div id="loginError" style="display:none;color:#ef4444;text-align:center;padding:10px;font-size:13px"></div>
+    <div id="loginSuccess" style="display:none;color:var(--green);text-align:center;padding:10px;font-size:14px">✅ Connected!</div>
+
+    <button class="btn btn-outline" onclick="closeLoginModal()" style="width:100%;margin-top:12px">Cancel</button>
+  </div>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg)}}</style>
+
+<!-- My Profile Modal -->
+<div class="modal-overlay" id="profileModal">
+  <div class="modal" style="max-width:550px">
+    <div style="text-align:center;margin-bottom:16px">
+      <div style="font-size:2.5em;margin-bottom:8px">👤</div>
+      <h2 id="profileName" style="margin:0"></h2>
+      <p id="profilePubkey" style="color:var(--muted);font-size:11px;word-break:break-all;margin-top:4px"></p>
+    </div>
+
+    <!-- Profile tabs -->
+    <div style="display:flex;border-bottom:1px solid var(--border);margin-bottom:16px">
+      <button onclick="switchProfileTab('products')" id="ptabProducts" class="btn" style="flex:1;border-radius:0;border-bottom:2px solid var(--accent);background:none;color:var(--text);font-size:13px">📦 Productes</button>
+      <button onclick="switchProfileTab('given')" id="ptabGiven" class="btn" style="flex:1;border-radius:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font-size:13px">⭐ Donades</button>
+      <button onclick="switchProfileTab('received')" id="ptabReceived" class="btn" style="flex:1;border-radius:0;border-bottom:2px solid transparent;background:none;color:var(--muted);font-size:13px">🌟 Rebudes</button>
+    </div>
+
+    <div id="profileProducts" style="max-height:50vh;overflow-y:auto"></div>
+    <div id="profileGiven" style="display:none;max-height:50vh;overflow-y:auto"></div>
+    <div id="profileReceived" style="display:none;max-height:50vh;overflow-y:auto"></div>
+
+    <button class="btn btn-outline" onclick="handleLogin()" id="profileLogout" style="width:100%;margin-top:16px">Desconnectar</button>
+    <button class="btn btn-outline" onclick="closeModal('profileModal')" style="width:100%;margin-top:8px">Tancar</button>
+  </div>
+</div>
+
+<!-- Rating Modal -->
+<div class="modal-overlay" id="ratingModal">
+  <div class="modal">
+    <div class="seller-profile">
+      <h3 id="ratingSeller"></h3>
+      <div class="stars" id="ratingAvg"></div>
+      <p id="ratingCount" style="color:var(--muted);font-size:13px"></p>
+    </div>
+    <div id="ratingsList"></div>
+    <div id="rateForm" style="display:none;margin-top:20px;border-top:1px solid var(--border);padding-top:20px">
+      <h4 style="margin-bottom:10px">La teva valoració</h4>
+      <div class="stars-input" id="starsInput">
+        <span onclick="setStars(1)">★</span>
+        <span onclick="setStars(2)">★</span>
+        <span onclick="setStars(3)">★</span>
+        <span onclick="setStars(4)">★</span>
+        <span onclick="setStars(5)">★</span>
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <textarea id="rateComment" placeholder="Comentari opcional..." rows="2"></textarea>
+      </div>
+      <button class="btn btn-green" onclick="submitRating()">Enviar valoració</button>
+    </div>
+    <button class="btn btn-outline" onclick="closeModal('ratingModal')" style="margin-top:15px;width:100%">Tancar</button>
+  </div>
+</div>
+
+<script>
+const API = '';
+let userNpub = null;
+let selectedStars = 0;
+let currentRatedNpub = null;
+let allCategories = [];
+let allRegions = [];
+
+// --- Init ---
+async function init() {
+  await Promise.all([loadCategories(), loadRegions(), loadUsers()]);
+  await loadProducts();
+}
+
+// --- Categories ---
+async function loadCategories() {
+  try {
+    const res = await fetch(`${API}/api/categories`);
+    allCategories = await res.json();
+    renderCategories();
+    populateCategorySelect();
+  } catch(e) { console.error(e); }
+}
+
+function renderCategories() {
+  const bar = document.getElementById('regionsBar');
+  const current = document.getElementById('categoryFilter').value;
+  bar.innerHTML = `<div class="region-chip ${!current ? 'active' : ''}" onclick="filterCategory('')">Tots</div>` +
+    allCategories.filter(c => c.id && c.count > 0).map(c =>
+      `<div class="region-chip ${current === c.id ? 'active' : ''}" onclick="filterCategory('${c.id}')">${c.emoji} ${c.name}<span class="count">${c.count}</span></div>`
+    ).join('');
+}
+
+function populateCategorySelect() {
+  const opts = allCategories.filter(c => c.id).map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
+  document.getElementById('categoryFilter').innerHTML = '<option value="">Totes les categories</option>' + opts;
+  document.getElementById('npCategory').innerHTML = '<option value="">Sense especificar</option>' + opts;
+}
+
+function filterCategory(cat) {
+  document.getElementById('categoryFilter').value = cat;
+  loadProducts();
+  renderCategories();
+}
+
+// --- Regions ---
+async function loadRegions() {
+  try {
+    const res = await fetch(`${API}/api/regions`);
+    allRegions = await res.json();
+    const opts = allRegions.map(r => `<option value="${r.id}">${r.emoji} ${r.name}</option>`).join('');
+    document.getElementById('npRegion').innerHTML = '<option value="">Sense especificar</option>' + opts;
+  } catch(e) { console.error(e); }
+}
+
+// --- Products ---
+async function loadProducts() {
+  const category = document.getElementById('categoryFilter').value;
+  const search = document.getElementById('searchInput').value;
+  const params = new URLSearchParams();
+  if (category) params.set('category', category);
+  if (search) params.set('search', search);
+
+  try {
+    const res = await fetch(`${API}/api/products?${params}`);
+    const products = await res.json();
+    renderProducts(products);
+  } catch(e) {
+    document.getElementById('productsGrid').innerHTML = '<div class="empty-state"><p>Error carregant productes</p></div>';
+  }
+}
+
+function renderProducts(products) {
+  const grid = document.getElementById('productsGrid');
+  if (!products.length) {
+    grid.innerHTML = '<div class="empty-state"><p>🛒 No hi ha productes encara</p><p>Sigues el primer en publicar!</p></div>';
+    return;
+  }
+
+  grid.innerHTML = products.map(p => {
+    const photo = p.photos && p.photos.length ? `<img class="product-photo" src="${escapeHtml(p.photos[0])}" alt="" onerror="this.outerHTML='<div class=product-photo-placeholder>📦</div>'">` : '<div class="product-photo-placeholder">📦</div>';
+    const cat = allCategories.find(c => c.id === p.category);
+    const catText = cat ? `${cat.emoji} ${cat.name}` : '';
+    const region = allRegions.find(r => r.id === p.region);
+    const regionText = region ? `📍 ${region.name}` : '';
+    const sellerLink = p.seller_telegram ? `<a href="https://t.me/${p.seller_telegram.replace('@','')}" target="_blank">${escapeHtml(p.seller_telegram)}</a>` : (p.seller_npub ? `<span style="cursor:pointer;color:var(--accent)" onclick="openUserProfile('${p.seller_npub}')">${p.seller_npub.substring(0,12)}...</span>` : 'Anonim');
+    const currency = p.price_currency === 'EUR' ? '€' : ' sats';
+    const priceDisplay = p.price_currency === 'EUR' ? `${escapeHtml(p.price)}€` : `${escapeHtml(p.price)} sats`;
+
+    return `
+      <div class="product-card" onclick="openProductDetail(${p.id})" style="cursor:pointer">
+        ${photo}
+        <div class="product-body">
+          <div class="product-title">${escapeHtml(p.title)}</div>
+          <div class="product-desc">${escapeHtml(p.description || '')}</div>
+          <div class="product-price">${priceDisplay}</div>
+          <div class="product-meta">
+            <div class="product-seller">👤 ${sellerLink}</div>
+            <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+              ${catText ? `<span class="product-source">${catText}</span>` : ''}
+              ${regionText ? `<span style="font-size:12px">${regionText}</span>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+// --- Search debounce ---
+let searchTimeout;
+document.getElementById('searchInput').addEventListener('input', () => {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(loadProducts, 300);
+});
+document.getElementById('categoryFilter').addEventListener('change', () => {
+  loadProducts();
+  renderCategories();
+});
+
+// --- Users sidebar ---
+let allUsers = [];
+
+async function loadUsers() {
+  try {
+    const res = await fetch(`${API}/api/users`);
+    allUsers = await res.json();
+    renderUsers();
+  } catch(e) { console.error(e); }
+}
+
+function renderUsers() {
+  const list = document.getElementById('userList');
+  if (!allUsers.length) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:20px">Encara no hi ha usuaris registrats. Fes login amb Nostr!</div>';
+    return;
+  }
+  list.innerHTML = allUsers.map(u => {
+    const name = u.display_name || u.npub.substring(0, 12) + '...';
+    const stars = u.rating_count > 0 ? '★'.repeat(Math.round(u.avg_rating)) + '☆'.repeat(5 - Math.round(u.avg_rating)) : '';
+    const ratingText = u.rating_count > 0 ? `${u.avg_rating}/5 (${u.rating_count})` : 'Sense valoracions';
+    const avatar = u.picture
+      ? `<img src="${escapeHtml(u.picture)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover" onerror="this.outerHTML='<div class=user-avatar>👤</div>'">`
+      : '<div class="user-avatar">👤</div>';
+    return `
+      <div class="user-item" onclick="openUserProfile('${u.npub}')">
+        ${avatar}
+        <div class="user-info-col">
+          <div class="user-name">${escapeHtml(name)}</div>
+          <div class="user-meta-line">
+            <span class="user-stars">${stars}</span>
+            <span>${ratingText}</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+async function openUserProfile(npub) {
+  currentRatedNpub = npub;
+  try {
+    const res = await fetch(`${API}/api/users/${npub}`);
+    const data = await res.json();
+    const name = data.user.display_name || npub.substring(0, 16) + '...';
+    document.getElementById('ratingSeller').textContent = name;
+    // Show picture
+    const sellerProfile = document.getElementById('ratingSeller').parentElement;
+    const existingPic = sellerProfile.querySelector('.rating-pic');
+    if (existingPic) existingPic.remove();
+    if (data.user.picture) {
+      const img = document.createElement('img');
+      img.src = data.user.picture;
+      img.className = 'rating-pic';
+      img.style.cssText = 'width:50px;height:50px;border-radius:50%;object-fit:cover;margin-bottom:8px';
+      img.onerror = () => { img.style.display = 'none'; };
+      sellerProfile.insertBefore(img, sellerProfile.firstChild);
+    }
+    document.getElementById('ratingAvg').textContent = '★'.repeat(Math.round(data.average)) + '☆'.repeat(5 - Math.round(data.average));
+    document.getElementById('ratingCount').textContent = `${data.average}/5 (${data.count} valoracions)`;
+    document.getElementById('ratingsList').innerHTML = data.ratings.map(r => {
+      const raterName = r.rater_name || r.rater_npub.substring(0, 8) + '...';
+      const raterPic = r.rater_picture ? `<img src="${escapeHtml(r.rater_picture)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:4px" onerror="this.style.display='none'">` : '';
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <span class="stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</span>
+        ${raterPic}<span style="color:var(--muted);font-size:12px">${escapeHtml(raterName)}</span>
+        ${r.comment ? `<p style="margin-top:4px;font-size:14px">${escapeHtml(r.comment)}</p>` : ''}
+      </div>`;
+    }).join('') || '<p style="color:var(--muted);text-align:center">Sense valoracions encara</p>';
+
+    document.getElementById('rateForm').style.display = (userNpub !== npub) ? 'block' : 'none';
+    document.getElementById('ratingModal').classList.add('active');
+  } catch(e) { console.error(e); }
+}
+
+async function fetchNostrProfile(pubkeyHex) {
+  // Connect to a relay and fetch kind:0 metadata
+  const relays = ['wss://relay.primal.net', 'wss://relay.damus.io', 'wss://nos.lol'];
+  for (const relayUrl of relays) {
+    try {
+      const profile = await new Promise((resolve, reject) => {
+        const ws = new WebSocket(relayUrl);
+        const timer = setTimeout(() => { ws.close(); reject('timeout'); }, 5000);
+        ws.onopen = () => {
+          ws.send(JSON.stringify(['REQ', 'profile', { kinds: [0], authors: [pubkeyHex], limit: 1 }]));
+        };
+        ws.onmessage = (e) => {
+          const msg = JSON.parse(e.data);
+          if (msg[0] === 'EVENT' && msg[2]?.kind === 0) {
+            clearTimeout(timer);
+            ws.close();
+            try { resolve(JSON.parse(msg[2].content)); } catch { resolve({}); }
+          } else if (msg[0] === 'EOSE') {
+            clearTimeout(timer);
+            ws.close();
+            resolve({});
+          }
+        };
+        ws.onerror = () => { clearTimeout(timer); reject('error'); };
+      });
+      if (profile.name || profile.display_name) return profile;
+    } catch(e) { continue; }
+  }
+  return {};
+}
+
+// --- Nostr Login ---
+let canSign = false;
+const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
+
+let nip46client = null;
+
+async function handleLogin() {
+  if (userNpub) {
+    // Logout
+    userNpub = null; canSign = false;
+    if (nip46client) { nip46client.abort(); nip46client = null; }
+    window.nostr = undefined;
+    document.getElementById('nostrStatus').textContent = '';
+    document.getElementById('nostrBtn').textContent = '🔐 Login';
+    document.getElementById('nostrBtn').style.display = '';
+    document.getElementById('profileBtn').style.display = 'none';
+    return;
+  }
+  await requestSigner();
+}
+
+function updateLoginUI() {
+  if (userNpub) {
+    const name = document.getElementById('nostrStatus');
+    name.textContent = '';
+    document.getElementById('nostrBtn').style.display = 'none';
+    document.getElementById('profileBtn').style.display = '';
+  }
+}
+
+async function openLoginModal() {
+  // Try direct login with extension before showing modal
+  if (window.nostr?.getPublicKey) {
+    try {
+      const pubkey = await window.nostr.getPublicKey();
+      if (pubkey) {
+        canSign = true;
+        userNpub = pubkey;
+        await completeLogin(pubkey);
+        return; // Skip modal entirely
+      }
+    } catch(e) { /* user rejected or error, show modal */ }
+  }
+  document.getElementById('loginModal').classList.add('active');
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginSuccess').style.display = 'none';
+  switchLoginTab('extension');
+}
+
+function closeLoginModal() {
+  document.getElementById('loginModal').classList.remove('active');
+  if (nip46client && !userNpub) { nip46client.abort(); nip46client = null; }
+  if (window._signerResolve) { window._signerResolve(); window._signerResolve = null; }
+}
+
+function switchLoginTab(tab) {
+  const extTab = document.getElementById('tabExt');
+  const conTab = document.getElementById('tabConnect');
+  const extPanel = document.getElementById('panelExtension');
+  const conPanel = document.getElementById('panelConnect');
+
+  if (tab === 'extension') {
+    extTab.style.borderBottomColor = 'var(--accent)'; extTab.style.color = 'var(--text)';
+    conTab.style.borderBottomColor = 'transparent'; conTab.style.color = 'var(--muted)';
+    extPanel.style.display = 'block'; conPanel.style.display = 'none';
+    checkExtension();
+  } else {
+    conTab.style.borderBottomColor = 'var(--accent)'; conTab.style.color = 'var(--text)';
+    extTab.style.borderBottomColor = 'transparent'; extTab.style.color = 'var(--muted)';
+    conPanel.style.display = 'block'; extPanel.style.display = 'none';
+    initNostrConnect();
+  }
+}
+
+function checkExtension(attempt = 0) {
+  const el = document.getElementById('extStatus');
+  if (window.nostr?.getPublicKey) {
+    el.innerHTML = `
+      <div style="font-size:2em;margin-bottom:12px">🔑</div>
+      <p style="font-weight:600;margin-bottom:8px">Extension Detected</p>
+      <p style="color:var(--muted);margin-bottom:16px">Click below to sign in with your Nostr key</p>
+      <button class="btn btn-accent" onclick="extLogin()" style="width:100%">Sign in with Extension</button>`;
+  } else if (attempt < 20) {
+    el.innerHTML = `
+      <div style="font-size:2em;margin-bottom:12px">⏳</div>
+      <p style="font-weight:600;margin-bottom:8px">Looking for extension...</p>
+      <p style="color:var(--muted);margin-bottom:16px">Waiting for Nostr extension to load</p>`;
+    setTimeout(() => checkExtension(attempt + 1), 500);
+  } else {
+    el.innerHTML = `
+      <div style="font-size:2em;margin-bottom:12px">🔍</div>
+      <p style="font-weight:600;margin-bottom:8px">No Extension Found</p>
+      <p style="color:var(--muted);margin-bottom:16px">Install a Nostr extension or use Nostr Connect</p>
+      <button class="btn btn-outline" onclick="extLogin()" style="width:100%;margin-bottom:8px">Try Login Anyway</button>
+      <button class="btn btn-outline" onclick="checkExtension(0)" style="width:100%;margin-bottom:8px">Retry Detection</button>
+      <button class="btn btn-outline" onclick="switchLoginTab('connect')" style="width:100%">Use Nostr Connect instead →</button>`;
+  }
+}
+
+async function extLogin() {
+  const errEl = document.getElementById('loginError');
+  try {
+    if (!window.nostr) {
+      errEl.textContent = 'window.nostr not found. Check that the Alby extension has permissions for this site.';
+      errEl.style.display = 'block';
+      return;
+    }
+    errEl.style.display = 'none';
+    const pubkey = await window.nostr.getPublicKey();
+    if (!pubkey) {
+      errEl.textContent = 'Extension returned empty pubkey';
+      errEl.style.display = 'block';
+      return;
+    }
+    canSign = true;
+    document.getElementById('loginSuccess').style.display = 'block';
+    closeLoginModal();
+    await completeLogin(pubkey);
+    if (window._signerResolve) { window._signerResolve(); window._signerResolve = null; }
+  } catch(e) {
+    errEl.textContent = 'Login error: ' + (e.message || String(e));
+    errEl.style.display = 'block';
+  }
+}
+
+async function initNostrConnect() {
+  if (nip46client) { nip46client.disconnect(); }
+  nip46client = new window.MercasatsAuth();
+  const connStr = nip46client.getConnectionString();
+
+  // Generate QR
+  const canvas = document.getElementById('qrCanvas');
+  try {
+    if (window.QRCode) {
+      QRCode.toCanvas(canvas, connStr, { width: 200, margin: 1, color: { dark: '#000000', light: '#ffffff' } }, (err) => {
+        if (err) console.error('QR error:', err);
+      });
+    }
+  } catch(e) { console.error('QR error:', e); }
+
+  // Amber link - use both href and onclick for reliability
+  const amberLink = document.getElementById('amberLink');
+  amberLink.href = connStr;
+  amberLink.onclick = (e) => {
+    e.preventDefault();
+    window.location.href = connStr;
+  };
+
+  // Copy button
+  document.getElementById('copyBtn').style.display = 'inline-block';
+  window._connStr = connStr;
+
+  // Wait for connection
+  document.getElementById('connectWaiting').style.display = 'block';
+
+  try {
+    const remotePubkey = await nip46client.waitForConnectionWithVisibility(120000);
+    canSign = true;
+
+    // Override window.nostr with NIP-46 signer
+    window.nostr = {
+      getPublicKey: async () => remotePubkey,
+      signEvent: async (event) => nip46client.signEvent(event),
+    };
+
+    document.getElementById('connectWaiting').style.display = 'none';
+    document.getElementById('loginSuccess').style.display = 'block';
+    setTimeout(() => {
+      closeLoginModal();
+      completeLogin(remotePubkey);
+      if (window._signerResolve) { window._signerResolve(); window._signerResolve = null; }
+    }, 500);
+  } catch(e) {
+    document.getElementById('connectWaiting').style.display = 'none';
+    document.getElementById('loginError').textContent = 'Connection failed: ' + e.message;
+    document.getElementById('loginError').style.display = 'block';
+  }
+}
+
+// --- Amber signing (Android) ---
+function amberGetPublicKey() {
+  const callbackUrl = window.location.origin + '/amber-callback';
+  const url = `intent:#Intent;scheme=nostrsigner;S.compressionType=none;S.returnType=signature;S.type=get_public_key;S.callbackUrl=${encodeURIComponent(callbackUrl)};end`;
+
+  sessionStorage.setItem('amber_pending', 'login');
+  window.location.href = url;
+}
+
+async function amberSignEvent(event) {
+  return new Promise((resolve, reject) => {
+    const eventJson = JSON.stringify(event);
+    const callbackUrl = window.location.origin + '/amber-callback';
+    const url = `intent:${encodeURIComponent(eventJson)}#Intent;scheme=nostrsigner;S.compressionType=none;S.returnType=signature;S.type=sign_event;S.callbackUrl=${encodeURIComponent(callbackUrl)};end`;
+
+    sessionStorage.setItem('amber_pending', 'sign');
+    sessionStorage.setItem('amber_event', eventJson);
+    window._amberSignResolve = resolve;
+    window._amberSignReject = reject;
+    window.location.href = url;
+  });
+}
+
+// Check URL for Amber callback
+function checkAmberCallback() {
+  const path = window.location.pathname;
+  const params = new URLSearchParams(window.location.search);
+  const pending = sessionStorage.getItem('amber_pending');
+
+  // Amber appends result directly to the callback URL path
+  // e.g. /amber-callback<hex_pubkey> or /amber-callback?pubkey=...
+  let result = null;
+
+  if (path.startsWith('/amber-callback')) {
+    // Extract from path (Amber concatenates directly)
+    const fromPath = path.replace('/amber-callback', '');
+    if (fromPath && /^[0-9a-f]{64}$/i.test(fromPath)) {
+      result = fromPath;
+    }
+    // Also check query params
+    if (!result) result = params.get('pubkey') || params.get('result') || params.get('signature');
+    // Check for hex in any param value
+    if (!result) {
+      for (const [k, v] of params) {
+        if (/^[0-9a-f]{64}$/i.test(v)) { result = v; break; }
+        if (/^[0-9a-f]{64}$/i.test(k)) { result = k; break; }
+      }
+    }
+  }
+
+  if (!result || !pending) return;
+
+  if (pending === 'login' && result) {
+    sessionStorage.removeItem('amber_pending');
+    window.history.replaceState({}, '', '/');
+    completeLogin(result);
+  } else if (pending === 'sign' && result) {
+    sessionStorage.removeItem('amber_pending');
+    const event = JSON.parse(sessionStorage.getItem('amber_event') || '{}');
+    sessionStorage.removeItem('amber_event');
+    window.history.replaceState({}, '', '/');
+    if (window._amberSignResolve) {
+      window._amberSignResolve({ ...event, sig: result, pubkey: userNpub });
+    }
+  }
+}
+
+checkAmberCallback();
+
+async function completeLogin(pubkeyHex) {
+  userNpub = pubkeyHex;
+  canSign = !!(window.nostr?.signEvent);
+
+  // Update UI immediately so the user sees the login
+  updateLoginUI();
+
+  // Fetch Nostr profile in background
+  try {
+    const profile = await fetchNostrProfile(pubkeyHex);
+    const displayName = profile.display_name || profile.name || pubkeyHex.substring(0, 12) + '...';
+    const picture = profile.picture || null;
+    window._myDisplayName = displayName;
+    window._myPicture = picture;
+
+    // Register user
+    await fetch(`${API}/api/users/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ npub: pubkeyHex, display_name: displayName, picture })
+    });
+
+    updateLoginUI();
+    loadUsers();
+  } catch(e) {
+    console.error('Profile fetch failed:', e);
+    loadUsers();
+  }
+}
+
+// --- New Product ---
+async function openNewProduct() {
+  // Ensure we have a signer before opening the form
+  if (!window.nostr?.signEvent) {
+    await requestSigner();
+    if (!window.nostr?.signEvent) return;
+  }
+  document.getElementById('newProductModal').classList.add('active');
+  document.getElementById('powStatus').textContent = '';
+}
+
+// Request a Nostr signer (extension or NIP-46)
+async function requestSigner() {
+  // Already have a working signer?
+  if (window.nostr?.signEvent) {
+    try {
+      userNpub = userNpub || await window.nostr.getPublicKey();
+      canSign = true;
+      if (userNpub) {
+        updateLoginUI();
+        completeLogin(userNpub);
+      }
+      return;
+    } catch(e) {}
+  }
+  // Have an active NIP-46 client? Re-set window.nostr
+  if (nip46client && nip46client.userPubkey) {
+    window.nostr = {
+      getPublicKey: async () => nip46client.userPubkey,
+      signEvent: async (event) => nip46client.signEvent(event),
+    };
+    userNpub = nip46client.userPubkey;
+    canSign = true;
+    updateLoginUI();
+    return;
+  }
+  // Otherwise open login modal for Nostr Connect
+  return new Promise((resolve) => {
+    window._signerResolve = resolve;
+    openLoginModal();
+  });
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.remove('active');
+}
+
+async function submitProduct() {
+  const title = document.getElementById('npTitle').value.trim();
+  const price = document.getElementById('npPrice').value.trim();
+  if (!title || !price) return alert('Titol i preu son obligatoris');
+
+  const btn = document.getElementById('submitBtn');
+  btn.disabled = true;
+  document.getElementById('powStatus').textContent = 'Resolent prova de treball (anti-spam)...';
+
+  try {
+    // Get challenge
+    const chalRes = await fetch(`${API}/api/challenge`);
+    const { challenge, difficulty } = await chalRes.json();
+
+    // Solve PoW
+    const nonce = await solvePoW(challenge, difficulty);
+    document.getElementById('powStatus').textContent = 'PoW resolt! Enviant...';
+
+    if (!window.nostr?.signEvent) {
+      return alert('Cal un signer Nostr per publicar.');
+    }
+
+    const photos = document.getElementById('npPhoto').value.trim();
+    const desc = document.getElementById('npDesc').value.trim();
+    const category = document.getElementById('npCategory').value || null;
+    const region = document.getElementById('npRegion').value || null;
+    const seller_telegram = document.getElementById('npTelegram').value.trim() || null;
+
+    // Sign a Nostr event as proof of authorship
+    const productEvent = {
+      kind: 30402, // NIP-99 classified listing
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['title', title],
+        ['price', price, document.getElementById('npCurrency').value],
+        ['t', 'mercasats'],
+        ...(category ? [['t', category]] : []),
+        ...(region ? [['location', region]] : []),
+        ...(photos ? [['image', photos]] : []),
+      ],
+      content: desc || title
+    };
+
+    let signedEvent;
+    try {
+      if (window.nostr?.signEvent) {
+        signedEvent = await window.nostr.signEvent(productEvent);
+      } else if (isMobile) {
+        signedEvent = await amberSignEvent(productEvent);
+      }
+      if (!signedEvent?.sig) return alert('Firma cancel·lada');
+    } catch(e) {
+      return alert('Error firmant: ' + e.message);
+    }
+
+    document.getElementById('powStatus').textContent = 'Firmat! Enviant...';
+
+    const body = {
+      title, description: desc, price,
+      price_currency: document.getElementById('npCurrency').value,
+      category, region,
+      seller_telegram,
+      seller_npub: userNpub || null,
+      photos: photos ? [photos] : [],
+      challenge, nonce,
+      signed_event: signedEvent
+    };
+
+    const res = await fetch(`${API}/api/products`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+
+    if (res.ok) {
+      closeModal('newProductModal');
+      loadProducts();
+      loadRegions();
+      // Clear form
+      ['npTitle','npDesc','npPrice','npTelegram','npPhoto'].forEach(id => document.getElementById(id).value = '');
+    } else {
+      const err = await res.json();
+      alert('Error: ' + err.error);
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('powStatus').textContent = '';
+  }
+}
+
+async function solvePoW(challenge, difficulty) {
+  const prefix = '0'.repeat(difficulty);
+  let nonce = 0;
+  while (true) {
+    const data = new TextEncoder().encode(challenge + nonce);
+    const hash = await crypto.subtle.digest('SHA-256', data);
+    const hex = Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('');
+    if (hex.startsWith(prefix)) return String(nonce);
+    nonce++;
+    if (nonce % 10000 === 0) {
+      document.getElementById('powStatus').textContent = `Resolent PoW... (${nonce} intents)`;
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+}
+
+// --- Ratings ---
+async function openRating(npub) {
+  currentRatedNpub = npub;
+  document.getElementById('ratingSeller').textContent = npub.substring(0, 16) + '...';
+  document.getElementById('ratingModal').classList.add('active');
+
+  try {
+    const res = await fetch(`${API}/api/ratings/${npub}`);
+    const data = await res.json();
+    document.getElementById('ratingAvg').textContent = '★'.repeat(Math.round(data.average)) + '☆'.repeat(5 - Math.round(data.average));
+    document.getElementById('ratingCount').textContent = `${data.average}/5 (${data.count} valoracions)`;
+    document.getElementById('ratingsList').innerHTML = data.ratings.map(r =>
+      `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <span class="stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</span>
+        <span style="color:var(--muted);font-size:12px">${r.rater_npub.substring(0,8)}...</span>
+        ${r.comment ? `<p style="margin-top:4px;font-size:14px">${escapeHtml(r.comment)}</p>` : ''}
+      </div>`
+    ).join('') || '<p style="color:var(--muted);text-align:center">Sense valoracions encara</p>';
+
+    document.getElementById('rateForm').style.display = 'block';
+  } catch(e) { console.error(e); }
+}
+
+function setStars(n) {
+  selectedStars = n;
+  document.querySelectorAll('#starsInput span').forEach((s, i) => {
+    s.classList.toggle('active', i < n);
+  });
+}
+
+async function submitRating() {
+  if (!selectedStars) return alert('Selecciona estrelles');
+  // Ensure we have a signer
+  if (!window.nostr?.signEvent) {
+    await requestSigner();
+    if (!window.nostr?.signEvent) return alert('Cal un signer Nostr per valorar.');
+  }
+  if (!userNpub && window.nostr?.getPublicKey) {
+    userNpub = await window.nostr.getPublicKey();
+  }
+  if (!userNpub) return alert('Cal connectar amb Nostr primer');
+  try {
+    const comment = document.getElementById('rateComment').value.trim();
+    let signedEvent = null;
+
+    // Try to sign if signer available
+    if (window.nostr?.signEvent) {
+      const ratingEvent = {
+        kind: 1,
+        created_at: Math.floor(Date.now() / 1000),
+        tags: [
+          ['p', currentRatedNpub],
+          ['rating', String(selectedStars)],
+          ['t', 'mercasats-rating']
+        ],
+        content: `Rating: ${selectedStars}/5${comment ? ' - ' + comment : ''}`
+      };
+      try {
+        signedEvent = await window.nostr.signEvent(ratingEvent);
+        if (!signedEvent?.sig) signedEvent = null;
+      } catch(e) { signedEvent = null; }
+    }
+
+    if (!signedEvent) {
+      if (!confirm('No es pot firmar la valoració (login de lectura). Vols enviar-la igualment sense verificació criptogràfica?')) return;
+    }
+
+    const res = await fetch(`${API}/api/ratings`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        rater_npub: userNpub, rated_npub: currentRatedNpub,
+        stars: selectedStars, comment,
+        signed_event: signedEvent
+      })
+    });
+    if (res.ok) {
+      openUserProfile(currentRatedNpub); // Refresh
+      loadUsers(); // Refresh sidebar
+      selectedStars = 0;
+      document.getElementById('rateComment').value = '';
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+// --- Product Detail ---
+async function openProductDetail(id) {
+  try {
+    const res = await fetch(`${API}/api/products/${id}`);
+    const p = await res.json();
+
+    // Photos gallery
+    const photosEl = document.getElementById('productDetailPhotos');
+    if (p.photos && p.photos.length) {
+      photosEl.innerHTML = p.photos.map(ph =>
+        `<img src="${escapeHtml(ph)}" style="width:100%;max-height:400px;object-fit:contain;background:#111;display:block;margin-bottom:2px;cursor:zoom-in" onclick="event.stopPropagation();window.open('${escapeHtml(ph)}','_blank')" onerror="this.style.display='none'">`
+      ).join('');
+    } else {
+      photosEl.innerHTML = '<div style="height:120px;background:#222;display:flex;align-items:center;justify-content:center;font-size:3em;color:#444">📦</div>';
+    }
+
+    // Title, price, desc
+    document.getElementById('productDetailTitle').textContent = p.title;
+    const currency = p.price_currency === 'EUR' ? '€' : ' sats';
+    document.getElementById('productDetailPrice').textContent = p.price + currency;
+    document.getElementById('productDetailDesc').textContent = p.description || '';
+
+    // Meta
+    const cat = allCategories.find(c => c.id === p.category);
+    const region = allRegions.find(r => r.id === p.region);
+    document.getElementById('productDetailMeta').innerHTML = `
+      ${cat ? `<span>${cat.emoji} ${cat.name}</span> · ` : ''}
+      ${region ? `<span>📍 ${region.name}</span> · ` : ''}
+      <span>${p.source === 'telegram' ? '📱 Telegram' : '🌐 Web'}</span> ·
+      <span>${p.created_at}</span>
+    `;
+
+    // Seller info
+    const sellerEl = document.getElementById('productDetailSeller');
+    const sellerLink = p.seller_telegram ? `<a href="https://t.me/${p.seller_telegram.replace('@','')}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600">${escapeHtml(p.seller_telegram)}</a>` : '';
+    const npubLink = p.seller_npub ? `<span style="cursor:pointer;color:var(--accent)" onclick="event.stopPropagation();closeModal('productModal');openUserProfile('${p.seller_npub}')">${p.seller_npub.substring(0,16)}...</span>` : '';
+
+    sellerEl.innerHTML = `
+      <div style="font-weight:600;margin-bottom:8px">👤 Venedor</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        ${sellerLink ? `<div>📱 ${sellerLink}</div>` : ''}
+        ${npubLink ? `<div>🔑 ${npubLink}</div>` : ''}
+      </div>
+    `;
+
+    // Rating section for seller
+    const ratingEl = document.getElementById('productDetailRating');
+    if (p.seller_npub) {
+      ratingEl.innerHTML = `
+        <div style="font-weight:600;margin-bottom:8px">⭐ Valorar venedor</div>
+        <div class="stars-input" id="productStarsInput">
+          <span onclick="setProductStars(1)">★</span>
+          <span onclick="setProductStars(2)">★</span>
+          <span onclick="setProductStars(3)">★</span>
+          <span onclick="setProductStars(4)">★</span>
+          <span onclick="setProductStars(5)">★</span>
+        </div>
+        <div class="form-group" style="margin-top:8px">
+          <textarea id="productRateComment" placeholder="Comentari opcional..." rows="2"></textarea>
+        </div>
+        <button class="btn btn-green" onclick="submitProductRating('${p.seller_npub}')">Enviar valoració</button>
+        <button class="btn btn-outline" onclick="closeModal('productModal');openUserProfile('${p.seller_npub}')" style="margin-left:8px">Veure perfil</button>
+      `;
+      window._productStars = 0;
+    } else if (p.seller_telegram) {
+      ratingEl.innerHTML = `<p style="color:var(--muted);font-size:13px">Contacta al venedor per Telegram per valorar-lo.</p>`;
+    } else {
+      ratingEl.innerHTML = '';
+    }
+
+    // Delete button (only for own products)
+    const deleteEl = document.getElementById('productDetailDelete');
+    if (userNpub && p.seller_npub && p.seller_npub === userNpub) {
+      deleteEl.innerHTML = `<button class="btn" onclick="deleteProduct(${p.id})" style="width:100%;background:#ef4444;color:#fff;margin-top:12px">🗑 Eliminar anunci</button>`;
+    } else {
+      deleteEl.innerHTML = '';
+    }
+
+    document.getElementById('productModal').classList.add('active');
+  } catch(e) {
+    console.error('Product detail error:', e);
+  }
+}
+
+function setProductStars(n) {
+  window._productStars = n;
+  document.querySelectorAll('#productStarsInput span').forEach((s, i) => {
+    s.classList.toggle('active', i < n);
+  });
+}
+
+async function deleteProduct(productId) {
+  if (!confirm('Segur que vols eliminar aquest anunci?')) return;
+  if (!window.nostr?.signEvent) {
+    alert('Has de tenir sessio iniciada per eliminar');
+    return;
+  }
+  try {
+    const event = { kind: 5, created_at: Math.floor(Date.now()/1000), tags: [], content: 'delete product' };
+    const signed = await window.nostr.signEvent(event);
+    const res = await fetch(`${API}/api/products/${productId}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signed_event: signed })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      closeModal('productModal');
+      loadProducts();
+      loadCategories();
+    } else {
+      alert(data.error || 'Error eliminant');
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function submitProductRating(sellerNpub) {
+  if (!window._productStars) return alert('Selecciona estrelles');
+  if (!window.nostr?.signEvent) {
+    await requestSigner();
+    if (!window.nostr?.signEvent) return alert('Cal un signer Nostr per valorar.');
+  }
+  if (!userNpub && window.nostr?.getPublicKey) {
+    userNpub = await window.nostr.getPublicKey();
+  }
+  if (!userNpub) return alert('Cal connectar amb Nostr primer');
+
+  const comment = document.getElementById('productRateComment').value.trim();
+  let signedEvent = null;
+  try {
+    const ratingEvent = {
+      kind: 1, created_at: Math.floor(Date.now() / 1000),
+      tags: [['p', sellerNpub], ['rating', String(window._productStars)], ['t', 'mercasats-rating']],
+      content: `Rating: ${window._productStars}/5${comment ? ' - ' + comment : ''}`
+    };
+    signedEvent = await window.nostr.signEvent(ratingEvent);
+  } catch(e) { signedEvent = null; }
+
+  if (!signedEvent && !confirm('No es pot firmar. Enviar igualment?')) return;
+
+  const res = await fetch(`${API}/api/ratings`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rater_npub: userNpub, rated_npub: sellerNpub, stars: window._productStars, comment, signed_event: signedEvent })
+  });
+  if (res.ok) {
+    alert('Valoració enviada!');
+    window._productStars = 0;
+    document.getElementById('productRateComment').value = '';
+    loadUsers();
+  } else {
+    const err = await res.json();
+    alert('Error: ' + err.error);
+  }
+}
+
+// --- My Profile ---
+async function openMyProfile() {
+  if (!userNpub) return;
+  document.getElementById('profileModal').classList.add('active');
+  const profileHeader = document.getElementById('profileName');
+  profileHeader.textContent = window._myDisplayName || userNpub.substring(0, 16) + '...';
+  const profileAvatar = profileHeader.parentElement.querySelector('.profile-pic');
+  if (profileAvatar) profileAvatar.remove();
+  if (window._myPicture) {
+    const img = document.createElement('img');
+    img.src = window._myPicture;
+    img.className = 'profile-pic';
+    img.style.cssText = 'width:60px;height:60px;border-radius:50%;object-fit:cover;margin-bottom:8px';
+    img.onerror = () => { img.outerHTML = '<div style="font-size:2.5em;margin-bottom:8px">👤</div>'; };
+    profileHeader.parentElement.querySelector('div').replaceWith(img);
+  }
+  document.getElementById('profilePubkey').textContent = userNpub;
+  document.getElementById('profileProducts').innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px">Carregant...</div>';
+  document.getElementById('profileGiven').innerHTML = '';
+  document.getElementById('profileReceived').innerHTML = '';
+  switchProfileTab('products');
+
+  try {
+    const res = await fetch(`${API}/api/me/${userNpub}`);
+    const data = await res.json();
+
+    // Products
+    if (data.products.length) {
+      document.getElementById('profileProducts').innerHTML = data.products.map(p =>
+        `<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <div>
+            <div style="font-weight:600">${escapeHtml(p.title)}</div>
+            <div style="color:var(--accent);font-size:14px">${escapeHtml(p.price)} ${p.price_currency === 'EUR' ? '€' : 'sats'}</div>
+            <div style="color:var(--muted);font-size:12px">${p.created_at}</div>
+          </div>
+          <button class="btn" onclick="event.stopPropagation();deleteProduct(${p.id}).then(()=>openMyProfile())" style="background:#ef4444;color:#fff;padding:4px 10px;font-size:12px">🗑</button>
+        </div>`
+      ).join('');
+    } else {
+      document.getElementById('profileProducts').innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px">Cap producte publicat</div>';
+    }
+
+    // Ratings given
+    if (data.ratingsGiven.length) {
+      document.getElementById('profileGiven').innerHTML = data.ratingsGiven.map(r =>
+        `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--star)">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</span>
+          → <span style="font-weight:600">${escapeHtml(r.rated_name || r.rated_npub.substring(0, 12) + '...')}</span>
+          ${r.comment ? `<p style="color:var(--muted);font-size:13px;margin-top:4px">${escapeHtml(r.comment)}</p>` : ''}
+          <div style="color:var(--muted);font-size:11px;margin-top:2px">${r.created_at}</div>
+        </div>`
+      ).join('');
+    } else {
+      document.getElementById('profileGiven').innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px">Cap valoració donada</div>';
+    }
+
+    // Ratings received
+    const avgText = data.ratingCount > 0 ? `${data.avgRating}/5 (${data.ratingCount} valoracions)` : 'Sense valoracions';
+    let receivedHtml = `<div style="text-align:center;margin-bottom:12px">
+      <span style="color:var(--star);font-size:1.2em">${data.ratingCount > 0 ? '★'.repeat(Math.round(data.avgRating)) + '☆'.repeat(5-Math.round(data.avgRating)) : '☆☆☆☆☆'}</span>
+      <div style="color:var(--muted);font-size:13px">${avgText}</div>
+    </div>`;
+    if (data.ratingsReceived.length) {
+      receivedHtml += data.ratingsReceived.map(r =>
+        `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--star)">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</span>
+          de <span style="font-weight:600">${escapeHtml(r.rater_name || r.rater_npub.substring(0, 12) + '...')}</span>
+          ${r.comment ? `<p style="color:var(--muted);font-size:13px;margin-top:4px">${escapeHtml(r.comment)}</p>` : ''}
+          <div style="color:var(--muted);font-size:11px;margin-top:2px">${r.created_at}</div>
+        </div>`
+      ).join('');
+    } else {
+      receivedHtml += '<div style="text-align:center;color:var(--muted);padding:10px">Cap valoració rebuda</div>';
+    }
+    document.getElementById('profileReceived').innerHTML = receivedHtml;
+
+  } catch(e) {
+    document.getElementById('profileProducts').innerHTML = '<div style="color:#ef4444;text-align:center;padding:20px">Error carregant perfil</div>';
+  }
+}
+
+function switchProfileTab(tab) {
+  const tabs = {products: 'ptabProducts', given: 'ptabGiven', received: 'ptabReceived'};
+  const panels = {products: 'profileProducts', given: 'profileGiven', received: 'profileReceived'};
+  Object.keys(tabs).forEach(t => {
+    document.getElementById(tabs[t]).style.borderBottomColor = t === tab ? 'var(--accent)' : 'transparent';
+    document.getElementById(tabs[t]).style.color = t === tab ? 'var(--text)' : 'var(--muted)';
+    document.getElementById(panels[t]).style.display = t === tab ? 'block' : 'none';
+  });
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+init();
+</script>
+<footer style="text-align:center;padding:32px 16px 24px;color:var(--muted);font-size:0.85em;border-top:1px solid var(--border);margin-top:40px">
+  <a href="https://github.com/Kilombino/mercasats" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;display:inline-flex;align-items:center;gap:6px">
+    <svg height="18" width="18" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+    GitHub
+  </a>
+</footer>
+</body>
+</html>
