@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Merca-sats</title>
   <link rel="icon" href="/logo.jpg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="/nostr-auth.bundle.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
   <style>
@@ -21,49 +24,70 @@
     }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Chakra Petch', sans-serif;
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
+      position: relative;
+    }
+    body::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      min-height: 100%;
+      z-index: -2;
+      background: url('/bg-mercasats.jpg') repeat-y top center;
+      background-size: 100% auto;
+      opacity: 0.25;
+      pointer-events: none;
     }
     .header {
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      background: linear-gradient(135deg, rgba(26,26,46,0.85), rgba(22,33,62,0.85)), url('/bg-mercasats.jpg') center center / cover;
       border-bottom: 2px solid var(--accent);
       padding: 20px;
       text-align: center;
     }
-    .header h1 { font-size: 2.2em; color: var(--accent); }
+    .header h1 { font-size: 2.2em; color: var(--accent); font-family: 'Chakra Petch', sans-serif; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.6); }
     .header h1 span { color: var(--text); }
     .header p { color: var(--muted); margin-top: 5px; }
 
     .toolbar {
       display: flex; gap: 10px; padding: 15px 20px;
-      background: var(--card); border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, rgba(26,26,46,0.9), rgba(15,15,15,0.9)), url('/bg-mercasats.jpg') center center / cover;
+      border-bottom: 1px solid var(--border);
       flex-wrap: wrap; align-items: center; justify-content: space-between;
     }
     .toolbar-left { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
     .toolbar-right { display: flex; gap: 10px; align-items: center; }
 
     .search-input {
-      background: var(--bg); border: 1px solid var(--border); color: var(--text);
-      padding: 8px 14px; border-radius: 8px; font-size: 14px; width: 220px;
+      background: var(--bg); border: 2px solid var(--border); color: var(--text);
+      padding: 8px 14px; border-radius: 4px; font-size: 14px; width: 220px;
+      font-family: 'Chakra Petch', sans-serif;
     }
     .search-input:focus { outline: none; border-color: var(--accent); }
 
     select {
-      background: var(--bg); border: 1px solid var(--border); color: var(--text);
-      padding: 8px 12px; border-radius: 8px; font-size: 14px;
+      background: var(--bg); border: 2px solid var(--border); color: var(--text);
+      padding: 8px 12px; border-radius: 4px; font-size: 14px;
+      font-family: 'Chakra Petch', sans-serif;
     }
 
     .btn {
-      padding: 8px 18px; border: none; border-radius: 8px; cursor: pointer;
+      padding: 8px 18px; border: 2px solid rgba(247,147,26,0.4); border-radius: 4px; cursor: pointer;
       font-size: 14px; font-weight: 600; transition: all 0.2s;
+      font-family: 'Chakra Petch', sans-serif; letter-spacing: 0.5px;
+      box-shadow: 1px 1px 3px rgba(0,0,0,0.4);
+      text-transform: uppercase;
     }
-    .btn-accent { background: var(--accent); color: #000; }
-    .btn-accent:hover { background: var(--accent2); }
-    .btn-outline { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
-    .btn-outline:hover { background: var(--accent); color: #000; }
-    .btn-green { background: var(--green); color: #000; }
+    .btn-accent { background: var(--accent); color: #000; border-color: #c77400; }
+    .btn-accent:hover { background: var(--accent2); box-shadow: 0 0 8px rgba(247,147,26,0.4); }
+    .btn-outline { background: transparent; border: 2px solid var(--accent); color: var(--accent); }
+    .btn-outline:hover { background: var(--accent); color: #000; box-shadow: 0 0 8px rgba(247,147,26,0.4); }
+    .btn-green { background: var(--green); color: #000; border-color: #1a9e4a; }
 
     .nostr-status {
       font-size: 13px; color: var(--muted);
@@ -72,18 +96,15 @@
 
     .main { max-width: 1200px; margin: 0 auto; padding: 20px; }
 
-    .regions-bar {
-      display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px;
+    .filters-bar {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; align-items: center;
     }
-    .region-chip {
-      padding: 6px 14px; border-radius: 20px; font-size: 13px; cursor: pointer;
-      background: var(--card); border: 1px solid var(--border); color: var(--text);
-      transition: all 0.2s;
+    .filters-bar select {
+      background: var(--bg); border: 2px solid var(--border); color: var(--text);
+      padding: 8px 12px; border-radius: 4px; font-size: 14px;
+      font-family: 'Chakra Petch', sans-serif; min-width: 180px;
     }
-    .region-chip:hover, .region-chip.active {
-      border-color: var(--accent); background: rgba(247,147,26,0.1);
-    }
-    .region-chip .count { color: var(--muted); margin-left: 4px; font-size: 11px; }
+    .filters-bar select:focus { outline: none; border-color: var(--accent); }
 
     .products-grid {
       display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -91,10 +112,11 @@
     }
 
     .product-card {
-      background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-      overflow: hidden; transition: transform 0.2s, border-color 0.2s;
+      background: var(--card); border: 2px solid var(--border); border-radius: 4px;
+      overflow: hidden; transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      box-shadow: 2px 2px 6px rgba(0,0,0,0.3);
     }
-    .product-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+    .product-card:hover { transform: translateY(-2px); border-color: var(--accent); box-shadow: 0 0 12px rgba(247,147,26,0.2); }
 
     .product-photo {
       width: 100%; height: 200px; object-fit: cover; background: #222;
@@ -140,15 +162,17 @@
     }
     .modal-overlay.active { display: flex; }
     .modal {
-      background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+      background: linear-gradient(180deg, rgba(26,26,46,0.92), rgba(15,15,15,0.95)), url('/bg-mercasats.jpg') center center / cover;
+      border: 2px solid rgba(247,147,26,0.3); border-radius: 4px;
       padding: 30px; max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 0 20px rgba(0,0,0,0.5);
     }
-    .modal h2 { color: var(--accent); margin-bottom: 20px; }
+    .modal h2 { color: var(--accent); margin-bottom: 20px; font-family: 'Chakra Petch', sans-serif; }
     .form-group { margin-bottom: 16px; }
     .form-group label { display: block; margin-bottom: 6px; font-size: 14px; color: var(--muted); }
     .form-group input, .form-group textarea, .form-group select {
       width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border);
-      border-radius: 8px; color: var(--text); font-family: inherit; font-size: 14px;
+      border-radius: 4px; color: var(--text); font-family: 'Chakra Petch', sans-serif; font-size: 14px;
     }
     .form-group textarea { min-height: 80px; resize: vertical; }
     .form-group input:focus, .form-group textarea:focus {
@@ -239,11 +263,8 @@
 
       .main { padding: 10px; }
 
-      .regions-bar {
-        gap: 6px; overflow-x: auto; flex-wrap: nowrap;
-        padding-bottom: 8px; -webkit-overflow-scrolling: touch;
-      }
-      .region-chip { white-space: nowrap; flex-shrink: 0; font-size: 12px; padding: 5px 10px; }
+      .filters-bar { flex-direction: column; }
+      .filters-bar select { width: 100%; font-size: 16px; }
 
       .products-grid {
         grid-template-columns: 1fr;
@@ -271,9 +292,7 @@
       .toolbar-right .btn { width: 100%; }
     }
 
-    /* Smooth scrolling for regions bar on mobile */
-    .regions-bar::-webkit-scrollbar { display: none; }
-    .regions-bar { -ms-overflow-style: none; scrollbar-width: none; }
+    /* Filters bar styling */
   </style>
 </head>
 <body>
@@ -287,9 +306,6 @@
 <div class="toolbar">
   <div class="toolbar-left">
     <input type="text" class="search-input" id="searchInput" placeholder="Buscar productes...">
-    <select id="categoryFilter">
-      <option value="">Totes les categories</option>
-    </select>
   </div>
   <div class="toolbar-right">
     <span class="nostr-status" id="nostrStatus"></span>
@@ -301,7 +317,14 @@
 
 <div class="content-wrapper">
   <div class="main">
-    <div class="regions-bar" id="regionsBar"></div>
+    <div class="filters-bar">
+      <select id="categoryFilterBar" onchange="filterCategory(this.value)">
+        <option value="">Totes les categories</option>
+      </select>
+      <select id="regionFilter" onchange="loadProducts()">
+        <option value="">Totes les zones</option>
+      </select>
+    </div>
     <div class="products-grid" id="productsGrid">
       <div class="empty-state">
         <p>Carregant productes...</p>
@@ -382,6 +405,7 @@
     <div id="productDetailDesc" style="color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.5"></div>
     <div id="productDetailMeta" style="font-size:13px;color:var(--muted);margin-bottom:16px;padding:12px;background:var(--bg);border-radius:8px"></div>
     <div id="productDetailSeller" style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:12px"></div>
+    <div id="productDetailZap"></div>
     <div id="productDetailRating" style="border-top:1px solid var(--border);padding-top:16px"></div>
     <div id="productDetailDelete"></div>
     <button class="btn btn-outline" onclick="closeModal('productModal')" style="width:100%;margin-top:16px">Tancar</button>
@@ -510,24 +534,27 @@ async function loadCategories() {
 }
 
 function renderCategories() {
-  const bar = document.getElementById('regionsBar');
-  const current = document.getElementById('categoryFilter').value;
-  bar.innerHTML = `<div class="region-chip ${!current ? 'active' : ''}" onclick="filterCategory('')">Tots</div>` +
-    allCategories.filter(c => c.id && c.count > 0).map(c =>
-      `<div class="region-chip ${current === c.id ? 'active' : ''}" onclick="filterCategory('${c.id}')">${c.emoji} ${c.name}<span class="count">${c.count}</span></div>`
-    ).join('');
+  // Populate both the filter bar dropdown and the new product form dropdown
+  const opts = allCategories.filter(c => c.id && c.count > 0).map(c =>
+    `<option value="${c.id}">${c.emoji} ${c.name} (${c.count})</option>`
+  ).join('');
+  const allOpts = allCategories.filter(c => c.id).map(c =>
+    `<option value="${c.id}">${c.emoji} ${c.name}</option>`
+  ).join('');
+  const barSel = document.getElementById('categoryFilterBar');
+  const current = barSel.value;
+  barSel.innerHTML = '<option value="">Totes les categories</option>' + opts;
+  barSel.value = current;
+  document.getElementById('npCategory').innerHTML = '<option value="">Sense especificar</option>' + allOpts;
 }
 
 function populateCategorySelect() {
-  const opts = allCategories.filter(c => c.id).map(c => `<option value="${c.id}">${c.emoji} ${c.name}</option>`).join('');
-  document.getElementById('categoryFilter').innerHTML = '<option value="">Totes les categories</option>' + opts;
-  document.getElementById('npCategory').innerHTML = '<option value="">Sense especificar</option>' + opts;
+  renderCategories();
 }
 
 function filterCategory(cat) {
-  document.getElementById('categoryFilter').value = cat;
+  document.getElementById('categoryFilterBar').value = cat;
   loadProducts();
-  renderCategories();
 }
 
 // --- Regions ---
@@ -537,15 +564,18 @@ async function loadRegions() {
     allRegions = await res.json();
     const opts = allRegions.map(r => `<option value="${r.id}">${r.emoji} ${r.name}</option>`).join('');
     document.getElementById('npRegion').innerHTML = '<option value="">Sense especificar</option>' + opts;
+    document.getElementById('regionFilter').innerHTML = '<option value="">Totes les zones</option>' + opts;
   } catch(e) { console.error(e); }
 }
 
 // --- Products ---
 async function loadProducts() {
-  const category = document.getElementById('categoryFilter').value;
+  const category = document.getElementById('categoryFilterBar').value;
+  const region = document.getElementById('regionFilter').value;
   const search = document.getElementById('searchInput').value;
   const params = new URLSearchParams();
   if (category) params.set('category', category);
+  if (region) params.set('region', region);
   if (search) params.set('search', search);
 
   try {
@@ -571,8 +601,8 @@ function renderProducts(products) {
     const region = allRegions.find(r => r.id === p.region);
     const regionText = region ? `📍 ${region.name}` : '';
     const sellerLink = p.seller_telegram ? `<a href="https://t.me/${p.seller_telegram.replace('@','')}" target="_blank">${escapeHtml(p.seller_telegram)}</a>` : (p.seller_npub ? `<span style="cursor:pointer;color:var(--accent)" onclick="openUserProfile('${p.seller_npub}')">${p.seller_npub.substring(0,12)}...</span>` : 'Anonim');
-    const currency = p.price_currency === 'EUR' ? '€' : ' sats';
-    const priceDisplay = p.price_currency === 'EUR' ? `${escapeHtml(p.price)}€` : `${escapeHtml(p.price)} sats`;
+    const currency = (p.price_currency || '').toUpperCase() === 'EUR' ? '€' : ' sats';
+    const priceDisplay = (p.price_currency || '').toUpperCase() === 'EUR' ? `${escapeHtml(p.price)}€` : `${escapeHtml(p.price)} sats`;
 
     return `
       <div class="product-card" onclick="openProductDetail(${p.id})" style="cursor:pointer">
@@ -600,9 +630,8 @@ document.getElementById('searchInput').addEventListener('input', () => {
   clearTimeout(searchTimeout);
   searchTimeout = setTimeout(loadProducts, 300);
 });
-document.getElementById('categoryFilter').addEventListener('change', () => {
+document.getElementById('regionFilter').addEventListener('change', () => {
   loadProducts();
-  renderCategories();
 });
 
 // --- Users sidebar ---
@@ -1243,7 +1272,7 @@ async function openProductDetail(id) {
 
     // Title, price, desc
     document.getElementById('productDetailTitle').textContent = p.title;
-    const currency = p.price_currency === 'EUR' ? '€' : ' sats';
+    const currency = (p.price_currency || '').toUpperCase() === 'EUR' ? '€' : ' sats';
     document.getElementById('productDetailPrice').textContent = p.price + currency;
     document.getElementById('productDetailDesc').textContent = p.description || '';
 
@@ -1257,6 +1286,15 @@ async function openProductDetail(id) {
       <span>${p.created_at}</span>
     `;
 
+    // Nostr event link
+    const metaEl = document.getElementById('productDetailMeta');
+    if (p.nostr_event_id) {
+      try {
+        const nevent = eventIdToNevent(p.nostr_event_id);
+        metaEl.innerHTML += ` · <a href="https://njump.me/${nevent}" target="_blank" style="color:var(--accent);text-decoration:none">Veure a Nostr ↗</a>`;
+      } catch(e) { console.error('nevent encode error:', e); }
+    }
+
     // Seller info
     const sellerEl = document.getElementById('productDetailSeller');
     const sellerLink = p.seller_telegram ? `<a href="https://t.me/${p.seller_telegram.replace('@','')}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600">${escapeHtml(p.seller_telegram)}</a>` : '';
@@ -1269,6 +1307,37 @@ async function openProductDetail(id) {
         ${npubLink ? `<div>🔑 ${npubLink}</div>` : ''}
       </div>
     `;
+
+    // Zap buy button (only for sats-priced products)
+    const zapEl = document.getElementById('productDetailZap');
+    const isSats = (p.price_currency || 'sats') === 'sats';
+    const defaultAmount = isSats && p.price && !isNaN(parseInt(p.price)) ? parseInt(p.price) : '';
+    if (p.seller_npub && !p.sold) {
+      const priceLabel = isSats ? `${escapeHtml(p.price)} sats` : escapeHtml(p.price) + (((p.price_currency||'').toUpperCase() === 'EUR') ? '€' : ' ' + (p.price_currency||''));
+      zapEl.innerHTML = `
+        <div style="margin-bottom:8px">
+          <label style="color:var(--muted);font-size:13px">Quantitat en sats ${!isSats ? `(${priceLabel})` : ''}:</label>
+          <input id="zapCustomAmount" type="number" min="1" value="${defaultAmount}" placeholder="Sats" style="width:100%;padding:8px;margin-top:4px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:14px" />
+        </div>
+        <div style="margin-bottom:8px">
+          <label style="color:var(--muted);font-size:13px">Missatge (opcional):</label>
+          <input id="zapComment" type="text" placeholder="Escriu un missatge per al venedor..." maxlength="200" style="width:100%;padding:8px;margin-top:4px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:14px" />
+        </div>
+        <button id="zapBuyBtn" class="btn btn-green" style="width:100%;margin-bottom:12px;font-size:16px;padding:12px" onclick="zapBuyProduct(${p.id})">
+          ⚡ Pagar amb Zap
+        </button>
+        <div id="zapInvoiceArea" style="display:none;text-align:center;margin-bottom:12px">
+          <p style="color:var(--accent);font-weight:600;margin-bottom:8px">Escaneja o copia la factura Lightning:</p>
+          <canvas id="zapQR" style="margin:0 auto;display:block;max-width:200px"></canvas>
+          <input id="zapInvoiceText" readonly style="width:100%;margin-top:8px;padding:8px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:11px;cursor:pointer" onclick="navigator.clipboard.writeText(this.value);this.style.borderColor='var(--green)'" />
+          <p style="color:var(--muted);font-size:12px;margin-top:4px">Toca per copiar la factura</p>
+        </div>
+      `;
+    } else if (p.sold) {
+      zapEl.innerHTML = `<div style="background:#ef4444;color:#fff;padding:12px;border-radius:8px;text-align:center;font-weight:600;margin-bottom:12px">VENUT</div>`;
+    } else {
+      zapEl.innerHTML = '';
+    }
 
     // Rating section for seller
     const ratingEl = document.getElementById('productDetailRating');
@@ -1314,6 +1383,54 @@ function setProductStars(n) {
   document.querySelectorAll('#productStarsInput span').forEach((s, i) => {
     s.classList.toggle('active', i < n);
   });
+}
+
+async function zapBuyProduct(productId) {
+  const btn = document.getElementById('zapBuyBtn');
+
+  const amountInput = document.getElementById('zapCustomAmount');
+  const amount = parseInt(amountInput?.value);
+  if (!amount || amount < 1) {
+    alert('Introdueix la quantitat en sats');
+    return;
+  }
+
+  const commentInput = document.getElementById('zapComment');
+  const comment = commentInput?.value || '';
+
+  let body = { amount_sats: amount };
+  if (comment) body.comment = comment;
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Generant factura...';
+  try {
+    const resp = await fetch(`/api/products/${productId}/invoice`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await resp.json();
+    if (!resp.ok || !data.invoice) {
+      alert(data.error || 'Error generant factura');
+      btn.disabled = false;
+      btn.textContent = '⚡ Comprar amb Zap';
+      return;
+    }
+    // Show QR and invoice
+    btn.style.display = 'none';
+    const area = document.getElementById('zapInvoiceArea');
+    area.style.display = 'block';
+    document.getElementById('zapInvoiceText').value = data.invoice;
+    // Generate QR
+    if (window.QRCode) {
+      const canvas = document.getElementById('zapQR');
+      QRCode.toCanvas(canvas, data.invoice.toUpperCase(), { width: 200, margin: 1, color: { dark: '#f7931a', light: '#0f0f0f' } });
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+    btn.disabled = false;
+    btn.textContent = '⚡ Comprar amb Zap';
+  }
 }
 
 async function deleteProduct(productId) {
@@ -1414,7 +1531,7 @@ async function openMyProfile() {
         `<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
           <div>
             <div style="font-weight:600">${escapeHtml(p.title)}</div>
-            <div style="color:var(--accent);font-size:14px">${escapeHtml(p.price)} ${p.price_currency === 'EUR' ? '€' : 'sats'}</div>
+            <div style="color:var(--accent);font-size:14px">${escapeHtml(p.price)} ${(p.price_currency || '').toUpperCase() === 'EUR' ? '€' : 'sats'}</div>
             <div style="color:var(--muted);font-size:12px">${p.created_at}</div>
           </div>
           <button class="btn" onclick="event.stopPropagation();deleteProduct(${p.id}).then(()=>openMyProfile())" style="background:#ef4444;color:#fff;padding:4px 10px;font-size:12px">🗑</button>
@@ -1477,6 +1594,77 @@ function escapeHtml(text) {
   const d = document.createElement('div');
   d.textContent = text;
   return d.innerHTML;
+}
+
+// --- Bech32 encoder for nevent ---
+const BECH32_CHARSET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+
+function bech32Polymod(values) {
+  const GEN = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3];
+  let chk = 1;
+  for (const v of values) {
+    const b = chk >> 25;
+    chk = ((chk & 0x1ffffff) << 5) ^ v;
+    for (let i = 0; i < 5; i++) {
+      if ((b >> i) & 1) chk ^= GEN[i];
+    }
+  }
+  return chk;
+}
+
+function bech32HrpExpand(hrp) {
+  const ret = [];
+  for (let i = 0; i < hrp.length; i++) ret.push(hrp.charCodeAt(i) >> 5);
+  ret.push(0);
+  for (let i = 0; i < hrp.length; i++) ret.push(hrp.charCodeAt(i) & 31);
+  return ret;
+}
+
+function bech32CreateChecksum(hrp, data) {
+  const values = bech32HrpExpand(hrp).concat(data).concat([0, 0, 0, 0, 0, 0]);
+  const polymod = bech32Polymod(values) ^ 1;
+  const ret = [];
+  for (let i = 0; i < 6; i++) ret.push((polymod >> (5 * (5 - i))) & 31);
+  return ret;
+}
+
+function bech32Encode(hrp, data) {
+  const combined = data.concat(bech32CreateChecksum(hrp, data));
+  return hrp + '1' + combined.map(d => BECH32_CHARSET[d]).join('');
+}
+
+function convertBits(data, fromBits, toBits, pad) {
+  let acc = 0, bits = 0;
+  const ret = [];
+  const maxv = (1 << toBits) - 1;
+  for (const value of data) {
+    acc = (acc << fromBits) | value;
+    bits += fromBits;
+    while (bits >= toBits) {
+      bits -= toBits;
+      ret.push((acc >> bits) & maxv);
+    }
+  }
+  if (pad && bits > 0) {
+    ret.push((acc << (toBits - bits)) & maxv);
+  }
+  return ret;
+}
+
+function hexToBytes(hex) {
+  const bytes = [];
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes.push(parseInt(hex.substring(i, i + 2), 16));
+  }
+  return bytes;
+}
+
+function eventIdToNevent(hexEventId) {
+  // TLV encoding: type 0 (event id), length 32, then 32 bytes
+  const eventIdBytes = hexToBytes(hexEventId);
+  const tlv = [0, 32, ...eventIdBytes];
+  const words = convertBits(tlv, 8, 5, true);
+  return bech32Encode('nevent', words);
 }
 
 init();
