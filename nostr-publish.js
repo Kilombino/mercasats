@@ -70,15 +70,36 @@ async function publishProduct(product, signedEvent) {
   // If we have a properly signed event from the client, publish it directly
   if (signedEvent && signedEvent.sig && signedEvent.id && signedEvent.pubkey &&
       signedEvent.sig !== '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000') {
-    console.log(`[Nostr] Publishing client-signed event for product ${id} (pubkey: ${signedEvent.pubkey.substring(0, 12)}...)`);
-    const results = await publishToRelays(signedEvent);
+
+    // Publish the event exactly as the client signed it — do NOT recompute the ID
+    // The signature is valid for this exact event (id + content + tags)
+    console.log(`[Nostr] Publishing client-signed event for product ${id} (pubkey: ${signedEvent.pubkey.substring(0, 12)}..., id: ${signedEvent.id.substring(0, 16)}...)`);
+
+    // Ensure the event has the exact structure relays expect
+    const cleanEvent = {
+      id: signedEvent.id,
+      pubkey: signedEvent.pubkey,
+      created_at: signedEvent.created_at,
+      kind: signedEvent.kind,
+      tags: signedEvent.tags || [],
+      content: signedEvent.content || '',
+      sig: signedEvent.sig
+    };
+
+    const results = await publishToRelays(cleanEvent);
     const successes = results.filter(r => r.ok);
+    const failures = results.filter(r => !r.ok);
     console.log(`[Nostr] Published client event to ${successes.length}/${results.length} relays (event: ${signedEvent.id})`);
+    if (failures.length > 0) {
+      console.log(`[Nostr] Relay errors:`, failures.map(f => `${f.relay}: ${f.err}`).join(', '));
+    }
     return signedEvent.id;
   }
 
   // Fallback: sign with marketplace key
-  const content = `${title}\n\n${description || ''}\n\n💰 ${price} ${price_currency === 'EUR' ? '€' : 'sats'}\n👤 ${seller_telegram || ''}\n🔗 ${WEB_URL}`;
+  const currUpper = (price_currency || 'sats').toUpperCase();
+  const currSymbol = currUpper === 'EUR' ? '€' : currUpper === 'BTC' ? 'BTC' : 'sats';
+  const content = `${title}\n\n${description || ''}\n\n💰 ${price} ${currSymbol}\n👤 ${seller_telegram || ''}\n🔗 ${WEB_URL}`;
 
   const tags = [
     ['d', `mercasats-${id}`],
@@ -86,7 +107,7 @@ async function publishProduct(product, signedEvent) {
     ['summary', (description || '').substring(0, 200)],
     ['published_at', String(Math.floor(Date.now() / 1000))],
     ['location', region || 'Catalunya'],
-    ['price', String(price), price_currency === 'EUR' ? 'EUR' : 'SAT'],
+    ['price', String(price), currUpper === 'EUR' ? 'EUR' : currUpper === 'BTC' ? 'BTC' : 'SAT'],
     ['t', 'mercasats'],
     ['t', 'p2p'],
     ['t', 'bitcoin'],
@@ -120,7 +141,10 @@ async function publishProduct(product, signedEvent) {
 /**
  * Start monitoring zap receipts for marketplace listings
  */
-function startZapMonitor(db) {
+let onSaleCallback = null;
+
+function startZapMonitor(db, saleCallback) {
+  onSaleCallback = saleCallback || null;
   console.log('[Nostr] Starting zap monitor...');
 
   function connect(relayUrl) {
@@ -211,9 +235,14 @@ function handleZapReceipt(event, db) {
 
       console.log(`[Nostr] Product ${product.id} "${product.title}" SOLD for ${amountSats} sats to ${buyerPubkey || 'unknown'}`);
 
-      // Notify seller
+      // Notify seller via Nostr
       if (product.seller_npub) {
         notifySeller(product, amountSats, buyerPubkey);
+      }
+
+      // Notify sale via callback (Telegram, etc.)
+      if (onSaleCallback) {
+        onSaleCallback(product, amountSats, buyerPubkey);
       }
     }
   } catch (e) {

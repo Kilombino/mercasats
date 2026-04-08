@@ -1,6 +1,7 @@
 const express = require('express');
 const db = require('./db');
 const path = require('path');
+const fs = require('fs');
 const crypto = require('crypto');
 const { publishProduct, startZapMonitor, deleteFromNostr } = require('./nostr-publish');
 
@@ -208,6 +209,10 @@ app.post('/api/products', async (req, res) => {
   const productId = result.lastInsertRowid;
 
   // Publish to Nostr (use client's signed event if properly signed, otherwise marketplace key)
+  console.log(`[Product ${productId}] signed_event.sig:`, signed_event?.sig?.substring(0, 32) + '...');
+  console.log(`[Product ${productId}] signed_event.id:`, signed_event?.id?.substring(0, 16) + '...');
+  console.log(`[Product ${productId}] signed_event.pubkey:`, signed_event?.pubkey?.substring(0, 16) + '...');
+  console.log(`[Product ${productId}] sig is placeholder:`, signed_event?.sig === '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000');
   try {
     const parsedPhotos = photos || [];
     const nostrEventId = await publishProduct({
@@ -416,17 +421,17 @@ app.get('/api/seller/:identifier', (req, res) => {
 
 // --- Internal API for Telegram scraper (called by Clawilom) ---
 app.post('/api/internal/product', async (req, res) => {
-  const { title, description, price, price_currency, region, category, photos, seller_telegram, telegram_message_id, telegram_chat_id } = req.body;
+  const { title, description, price, price_currency, region, category, photos, seller_telegram, seller_npub, telegram_message_id, telegram_chat_id } = req.body;
 
   const stmt = db.prepare(`
-    INSERT INTO products (title, description, price, price_currency, region, category, photos, seller_telegram, source, telegram_message_id, telegram_chat_id)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'telegram', ?, ?)
+    INSERT INTO products (title, description, price, price_currency, region, category, photos, seller_telegram, seller_npub, source, telegram_message_id, telegram_chat_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'telegram', ?, ?)
   `);
 
   const result = stmt.run(
     title, description || '', price, price_currency || 'sats',
     region || null, category || null, JSON.stringify(photos || []),
-    seller_telegram || null, telegram_message_id || null, telegram_chat_id || null
+    seller_telegram || null, seller_npub || null, telegram_message_id || null, telegram_chat_id || null
   );
 
   const productId = result.lastInsertRowid;
@@ -435,7 +440,7 @@ app.post('/api/internal/product', async (req, res) => {
   try {
     const nostrEventId = await publishProduct({
       id: productId, title, description, price, price_currency: price_currency || 'sats',
-      seller_npub: null, seller_telegram: seller_telegram || null,
+      seller_npub: seller_npub || null, seller_telegram: seller_telegram || null,
       photos: photos || [], category, region
     });
     if (nostrEventId) {
@@ -518,7 +523,8 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 
   // 1. Delete from DB (soft delete)
-  db.prepare('UPDATE products SET active = 0 WHERE id = ?').run(req.params.id);
+  db.prepare("UPDATE products SET active = 0, removal_reason = ?, updated_at = datetime('now') WHERE id = ?")
+    .run('Eliminat pel venedor des de la web', req.params.id);
 
   // 2. Delete from Telegram
   if (product.telegram_message_id && product.telegram_chat_id) {
@@ -539,6 +545,223 @@ app.delete('/api/products/:id', async (req, res) => {
   res.json({ ok: true, deleted: product.id });
 });
 
+// --- Internal photo update (called by telegram scraper for follow-up photos) ---
+app.put('/api/internal/product/:id/photos', (req, res) => {
+  const { photos } = req.body;
+  const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(req.params.id);
+  if (!product) return res.status(404).json({ error: 'Not found' });
+
+  const existing = JSON.parse(product.photos || '[]');
+  const merged = [...existing, ...(photos || [])];
+  db.prepare('UPDATE products SET photos = ? WHERE id = ?').run(JSON.stringify(merged), req.params.id);
+  console.log(`[Internal] Added ${photos.length} photo(s) to product ${product.id} "${product.title}"`);
+  res.json({ ok: true, photos: merged });
+});
+
+// --- Internal delete (called by telegram scraper when message is deleted) ---
+app.delete('/api/internal/product/:id', async (req, res) => {
+  const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(req.params.id);
+  if (!product) return res.status(404).json({ error: 'Not found' });
+
+  // Soft delete with reason
+  const reason = req.body?.reason || 'Eliminat des de Telegram';
+  db.prepare("UPDATE products SET active = 0, removal_reason = ?, updated_at = datetime('now') WHERE id = ?").run(reason, req.params.id);
+
+  // Delete from Nostr
+  if (product.nostr_event_id) {
+    try {
+      await deleteFromNostr(product.nostr_event_id, product.id);
+      console.log(`[Internal Delete] Nostr event ${product.nostr_event_id} deleted`);
+    } catch(e) { console.error('[Internal Delete] Nostr error:', e.message); }
+  }
+
+  // Delete local photo if exists
+  if (product.photos) {
+    try {
+      const photos = JSON.parse(product.photos);
+      for (const p of photos) {
+        if (p.startsWith('/photos/')) {
+          const fullPath = path.join(__dirname, 'public', p);
+          if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
+        }
+      }
+    } catch(e) {}
+  }
+
+  console.log(`[Internal Delete] Product ${product.id} "${product.title}" removed (TG message deleted)`);
+  res.json({ ok: true, deleted: product.id });
+});
+
+// --- Generate Lightning invoice for product zap ---
+app.post('/api/products/:id/invoice', async (req, res) => {
+  const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(req.params.id);
+  if (!product) return res.status(404).json({ error: 'Product not found' });
+  if (product.sold === 1) return res.status(400).json({ error: 'Product already sold' });
+  if (!product.seller_npub) return res.status(400).json({ error: "L'usuari no té npub associada" });
+
+  // Accept custom amount from body (for EUR/BTC products), or use product price for sats
+  let amountSats;
+  if (req.body && req.body.amount_sats) {
+    amountSats = parseInt(req.body.amount_sats);
+  } else if (product.price_currency === 'sats' && product.price && !isNaN(parseInt(product.price))) {
+    amountSats = parseInt(product.price);
+  } else {
+    return res.status(400).json({ error: 'amount_sats required for non-sats prices', needs_amount: true });
+  }
+  if (!amountSats || amountSats < 1) return res.status(400).json({ error: 'Invalid amount' });
+
+  const amountMsat = amountSats * 1000;
+
+  // Find seller's Lightning address from Nostr profile
+  let lnAddress = null;
+  const sellerNpub = product.seller_npub;
+
+  if (sellerNpub) {
+    try {
+      lnAddress = await fetchLightningAddress(sellerNpub);
+    } catch (e) {
+      console.error('[Invoice] Failed to fetch LN address:', e.message);
+    }
+  }
+
+  if (!lnAddress) {
+    return res.status(400).json({ error: "L'usuari no té LN address a Nostr" });
+  }
+
+  // Resolve LNURL-pay from Lightning address
+  try {
+    const [user, domain] = lnAddress.split('@');
+    const lnurlUrl = `https://${domain}/.well-known/lnurlp/${user}`;
+
+    const https = require('https');
+    const lnurlData = await new Promise((resolve, reject) => {
+      https.get(lnurlUrl, (r) => {
+        let d = '';
+        r.on('data', c => d += c);
+        r.on('end', () => { try { resolve(JSON.parse(d)); } catch(e) { reject(e); } });
+      }).on('error', reject);
+    });
+
+    if (!lnurlData.callback) return res.status(400).json({ error: 'Invalid LNURL response' });
+
+    // Check amount limits
+    if (amountMsat < (lnurlData.minSendable || 0) || amountMsat > (lnurlData.maxSendable || Infinity)) {
+      return res.status(400).json({ error: `Amount ${amountSats} sats outside limits` });
+    }
+
+    // Create zap request event (NIP-57)
+    const { finalizeEvent: fe } = require('nostr-tools/pure');
+    const zapSk = Uint8Array.from(Buffer.from(process.env.NOSTR_NSEC_HEX, 'hex'));
+    const zapRequest = fe({
+      kind: 9734,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['p', sellerNpub],
+        ['e', product.nostr_event_id],
+        ['amount', String(amountMsat)],
+        ['relays', 'wss://relay.primal.net', 'wss://relay.damus.io', 'wss://nos.lol'],
+      ],
+      content: (req.body && req.body.comment) || `Payment for: ${product.title}`,
+    }, zapSk);
+
+    // Request invoice from LNURL callback
+    const callbackUrl = new URL(lnurlData.callback);
+    callbackUrl.searchParams.set('amount', String(amountMsat));
+
+    // Add comment
+    const comment = (req.body && req.body.comment) || `MercaSats: ${product.title}`;
+    if (lnurlData.commentAllowed && comment.length <= lnurlData.commentAllowed) {
+      callbackUrl.searchParams.set('comment', comment);
+    }
+
+    // Add nostr zap request only if URL won't be too long (some servers reject long URLs)
+    if (lnurlData.allowsNostr) {
+      const nostrParam = JSON.stringify(zapRequest);
+      const testUrl = callbackUrl.toString() + '&nostr=' + encodeURIComponent(nostrParam);
+      if (testUrl.length < 800) {
+        callbackUrl.searchParams.set('nostr', nostrParam);
+      } else {
+        console.log('[Invoice] Skipping nostr param (URL too long:', testUrl.length, ')');
+      }
+    }
+
+    const invoiceData = await new Promise((resolve, reject) => {
+      const cbUrl = callbackUrl.toString();
+      console.log('[Invoice] Callback URL length:', cbUrl.length);
+      https.get(cbUrl, (r) => {
+        let d = '';
+        r.on('data', c => d += c);
+        r.on('end', () => {
+          console.log('[Invoice] Callback response:', r.statusCode, d.substring(0, 200));
+          try { resolve(JSON.parse(d)); } catch(e) {
+            reject(new Error(`Invalid response (${r.statusCode}): ${d.substring(0, 100)}`));
+          }
+        });
+      }).on('error', reject);
+    });
+
+    if (!invoiceData.pr) return res.status(500).json({ error: 'Failed to get invoice' });
+
+    res.json({ invoice: invoiceData.pr, amount_sats: amountSats });
+  } catch (e) {
+    console.error('[Invoice] Error:', e.message);
+    res.status(500).json({ error: 'Failed to generate invoice: ' + e.message });
+  }
+});
+
+// Fetch Lightning address from Nostr profile (kind 0)
+async function fetchLightningAddress(pubkeyHex) {
+  const WebSocket = require('ws');
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket('wss://relay.primal.net');
+    const timeout = setTimeout(() => { ws.close(); reject(new Error('timeout')); }, 10000);
+    ws.on('open', () => {
+      ws.send(JSON.stringify(['REQ', 'ln', { kinds: [0], authors: [pubkeyHex], limit: 1 }]));
+    });
+    ws.on('message', (data) => {
+      const msg = JSON.parse(data.toString());
+      if (msg[0] === 'EVENT' && msg[2]?.content) {
+        try {
+          const profile = JSON.parse(msg[2].content);
+          const lnAddr = profile.lud16 || profile.lud06 || null;
+          clearTimeout(timeout);
+          ws.close();
+          resolve(lnAddr);
+        } catch { /* ignore */ }
+      }
+      if (msg[0] === 'EOSE') { clearTimeout(timeout); ws.close(); resolve(null); }
+    });
+    ws.on('error', (e) => { clearTimeout(timeout); reject(e); });
+  });
+}
+
+// --- Notifications feed for mobile app ---
+app.get('/api/notifications', (req, res) => {
+  const since = req.query.since || '2000-01-01';
+
+  // New products since timestamp
+  const newProducts = db.prepare(
+    "SELECT id, title, price, price_currency, photos, seller_telegram, created_at FROM products WHERE active = 1 AND created_at > ? ORDER BY created_at DESC LIMIT 10"
+  ).all(since);
+
+  // New ratings since timestamp (include profile pictures)
+  const newRatings = db.prepare(
+    "SELECT r.*, np.display_name as rated_name, np.picture as rated_picture, np2.display_name as rater_name, np2.picture as rater_picture FROM ratings r LEFT JOIN npub_profiles np ON np.npub = r.rated_npub LEFT JOIN npub_profiles np2 ON np2.npub = r.rater_npub WHERE r.created_at > ? ORDER BY r.created_at DESC LIMIT 10"
+  ).all(since);
+
+  // Recently removed products (include photos for notification)
+  const removedProducts = db.prepare(
+    "SELECT id, title, photos, removal_reason, updated_at FROM products WHERE active = 0 AND removal_reason IS NOT NULL AND updated_at > ? ORDER BY updated_at DESC LIMIT 10"
+  ).all(since);
+
+  // Recently sold products
+  const soldProducts = db.prepare(
+    "SELECT id, title, price, price_currency, photos, seller_telegram, buyer_npub, sold_at FROM products WHERE sold = 1 AND sold_at > ? ORDER BY sold_at DESC LIMIT 10"
+  ).all(since);
+
+  res.json({ newProducts, newRatings, removedProducts, soldProducts });
+});
+
 // --- CORS preflight for DELETE ---
 app.options('/api/products/:id', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -550,5 +773,16 @@ app.options('/api/products/:id', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Merkasats API on http://0.0.0.0:${PORT}`);
   // Start Nostr zap monitor
-  startZapMonitor(db);
+  startZapMonitor(db, async (product, amountSats, buyerPubkey) => {
+    // Notify sale on Telegram group
+    const seller = product.seller_telegram || product.seller_npub?.substring(0, 12) || 'Desconegut';
+    const buyer = buyerPubkey ? buyerPubkey.substring(0, 12) + '...' : 'un comprador';
+    const tgSeller = product.seller_telegram ? (product.seller_telegram.startsWith('@') ? product.seller_telegram : '@' + product.seller_telegram) : seller;
+    const text = `🛒 *VENUT\\!*\n\n*${tgEscape(product.title)}*\n💰 ${amountSats} sats\n👤 Comprador: ${tgEscape(buyer)}\n🏪 Venedor: ${tgEscape(tgSeller)}\n\n🔗 [mercasats\\.kilombino\\.com](https://mercasats.kilombino.com)`;
+
+    try {
+      await sendTelegramAnnounce(text, null);
+      console.log('[Sale] Telegram notification sent');
+    } catch(e) { console.error('[Sale] TG notify error:', e.message); }
+  });
 });
