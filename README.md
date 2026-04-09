@@ -106,3 +106,27 @@ mercasats/
 ## Licencia
 
 MIT
+
+## Verificar firma del APK Android
+
+Todos los APKs publicados a partir de **v1.7.1** están firmados con el keystore release oficial de Trobades Bitcoiners. Puedes verificar que un APK descargado lo firmamos nosotros con:
+
+```bash
+apksigner verify --print-certs mercasats-v1.7.1.apk
+```
+
+El SHA-256 del certificado debe coincidir exactamente con:
+
+```
+e061195de1680cede938baa54979f5258a8148910091b4a888d0bb5170ff88ec
+```
+
+Subject del certificado:
+
+```
+CN=Kilombino, O=Trobades Bitcoiners, L=Barcelona, ST=Catalunya, C=ES
+```
+
+Si el fingerprint no coincide, **no instales el APK** — alguien lo ha re-empaquetado.
+
+> ⚠️ Las versiones anteriores a v1.7.1 estaban firmadas con el debug keystore por defecto de Android. Por eso v1.7.1 obliga a desinstalar las versiones previas (Android bloquea actualizaciones con firma distinta).
