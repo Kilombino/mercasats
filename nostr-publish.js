@@ -10,9 +10,12 @@ const { finalizeEvent, getPublicKey } = require('nostr-tools/pure');
 const WebSocket = require('ws');
 
 const RELAYS = [
+  'wss://relay.kilombino.com',
   'wss://relay.primal.net',
   'wss://relay.damus.io',
   'wss://nos.lol',
+  'wss://relay.snort.social',
+  'wss://nostr.wine',
   'wss://relay.nostr.band'
 ];
 
@@ -59,6 +62,20 @@ function publishToRelays(event) {
   return Promise.all(results);
 }
 
+// Verify event exists on at least one relay, retry if not
+async function publishWithVerification(event, maxRetries = 2) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const results = await publishToRelays(event);
+    const successes = results.filter(r => r.ok);
+    if (successes.length > 0) {
+      return { results, successes: successes.length, attempt };
+    }
+    console.log(`[Nostr] Publish attempt ${attempt + 1} failed (0/${results.length} relays). ${attempt < maxRetries ? 'Retrying in 3s...' : 'Giving up.'}`);
+    if (attempt < maxRetries) await new Promise(r => setTimeout(r, 3000));
+  }
+  return { results: [], successes: 0, attempt: maxRetries };
+}
+
 /**
  * Publish a product listing to Nostr as kind 30402 (classified listing)
  * If a valid signed_event from the client is provided, publish that directly.
@@ -86,17 +103,43 @@ async function publishProduct(product, signedEvent) {
       sig: signedEvent.sig
     };
 
-    const results = await publishToRelays(cleanEvent);
-    const successes = results.filter(r => r.ok);
+    const { results, successes: okCount, attempt } = await publishWithVerification(cleanEvent);
     const failures = results.filter(r => !r.ok);
-    console.log(`[Nostr] Published client event to ${successes.length}/${results.length} relays (event: ${signedEvent.id})`);
+    console.log(`[Nostr] Published client event to ${okCount}/${results.length} relays (event: ${signedEvent.id})${attempt > 0 ? ` after ${attempt + 1} attempts` : ''}`);
     if (failures.length > 0) {
       console.log(`[Nostr] Relay errors:`, failures.map(f => `${f.relay}: ${f.err}`).join(', '));
     }
+    if (okCount === 0) {
+      console.error(`[Nostr] WARNING: Event ${signedEvent.id} failed to publish to ANY relay after retries!`);
+    }
+
+    // Also publish under marketplace key so it appears on Trobades Bitcoiners profile
+    try {
+      const marketplaceEvent = buildMarketplaceEvent(product);
+      const { successes: mOk } = await publishWithVerification(marketplaceEvent);
+      console.log(`[Nostr] Also published under marketplace key to ${mOk} relays`);
+    } catch(e) { console.error('[Nostr] Marketplace mirror error:', e.message); }
+
     return signedEvent.id;
   }
 
   // Fallback: sign with marketplace key
+  const event = buildMarketplaceEvent(product);
+
+  const { results, successes: okCount, attempt } = await publishWithVerification(event);
+  console.log(`[Nostr] Published product ${id} (marketplace key) to ${okCount}/${results.length} relays (event: ${event.id})${attempt > 0 ? ` after ${attempt + 1} attempts` : ''}`);
+  if (okCount === 0) {
+    console.error(`[Nostr] WARNING: Product ${id} failed to publish to ANY relay after retries!`);
+  }
+
+  return event.id;
+}
+
+/**
+ * Build a kind 30402 event signed with the marketplace (Trobades Bitcoiners) key.
+ */
+function buildMarketplaceEvent(product) {
+  const { id, title, description, price, price_currency, seller_npub, seller_telegram, photos, category, region } = product;
   const currUpper = (price_currency || 'sats').toUpperCase();
   const currSymbol = currUpper === 'EUR' ? '€' : currUpper === 'BTC' ? 'BTC' : 'sats';
   const content = `${title}\n\n${description || ''}\n\n💰 ${price} ${currSymbol}\n👤 ${seller_telegram || ''}\n🔗 ${WEB_URL}`;
@@ -124,18 +167,12 @@ async function publishProduct(product, signedEvent) {
     }
   }
 
-  const event = finalizeEvent({
+  return finalizeEvent({
     kind: 30402,
     created_at: Math.floor(Date.now() / 1000),
     tags,
     content,
   }, sk);
-
-  const results = await publishToRelays(event);
-  const successes = results.filter(r => r.ok);
-  console.log(`[Nostr] Published product ${id} (marketplace key) to ${successes.length}/${results.length} relays (event: ${event.id})`);
-
-  return event.id;
 }
 
 /**
@@ -329,4 +366,4 @@ async function deleteFromNostr(eventId, productId) {
   return event.id;
 }
 
-module.exports = { publishProduct, startZapMonitor, deleteFromNostr, pk, RELAYS };
+module.exports = { publishProduct, publishToRelays, startZapMonitor, deleteFromNostr, pk, RELAYS };
