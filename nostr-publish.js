@@ -144,17 +144,21 @@ function buildMarketplaceEvent(product) {
   const currSymbol = currUpper === 'EUR' ? '€' : currUpper === 'BTC' ? 'BTC' : 'sats';
   const content = `${title}\n\n${description || ''}\n\n💰 ${price} ${currSymbol}\n👤 ${seller_telegram || ''}\n🔗 ${WEB_URL}`;
 
+  const createdAt = Math.floor(Date.now() / 1000);
+  const expirationTs = createdAt + 365 * 24 * 3600; // NIP-40: 1 year default
+
   const tags = [
     ['d', `mercasats-${id}`],
     ['title', title],
     ['summary', (description || '').substring(0, 200)],
-    ['published_at', String(Math.floor(Date.now() / 1000))],
+    ['published_at', String(createdAt)],
     ['location', region || 'Catalunya'],
     ['price', String(price), currUpper === 'EUR' ? 'EUR' : currUpper === 'BTC' ? 'BTC' : 'SAT'],
     ['t', 'mercasats'],
     ['t', 'p2p'],
     ['t', 'bitcoin'],
     ['r', `${WEB_URL}`],
+    ['expiration', String(expirationTs)],
   ];
 
   if (category) tags.push(['t', category]);
@@ -169,7 +173,7 @@ function buildMarketplaceEvent(product) {
 
   return finalizeEvent({
     kind: 30402,
-    created_at: Math.floor(Date.now() / 1000),
+    created_at: createdAt,
     tags,
     content,
   }, sk);
