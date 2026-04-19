@@ -19,6 +19,31 @@ function npubToHex(npub) {
   }
 }
 
+// hex → bech32 npub conversion (for display)
+function hexToNpub(hex) {
+  if (!hex) return hex;
+  if (hex.startsWith('npub1')) return hex; // already bech32
+  try {
+    const { npubEncode } = require('nostr-tools/nip19');
+    return npubEncode(hex);
+  } catch(e) {
+    return hex; // fallback to hex if conversion fails
+  }
+}
+
+// Sellers with a fixed region — their ads always land in this region regardless
+// of what the scraper detects or the publish form sends.
+const FORCED_SELLER_REGIONS = {
+  kilombino: 'baixllobregat',
+  eznomada: 'galicia',
+};
+
+function forcedRegionForSeller(sellerTelegram) {
+  if (!sellerTelegram) return null;
+  const key = sellerTelegram.replace(/^@/, '').toLowerCase();
+  return FORCED_SELLER_REGIONS[key] || null;
+}
+
 const app = express();
 const PORT = 3102;
 
@@ -32,14 +57,43 @@ app.get('/amber-callback', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'allow' }));
 app.use('/photos', express.static(path.join(__dirname, 'photos')));
 
-// CORS
+// --- Photo upload ---
+const multer = require('multer');
+const photoStorage = multer.diskStorage({
+  destination: path.join(__dirname, 'photos'),
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.jpg';
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`);
+  }
+});
+const upload = multer({
+  storage: photoStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('image/')) cb(null, true);
+    else cb(new Error('Solo se permiten imágenes'));
+  }
+});
+
+app.post('/api/upload-photo', upload.single('photo'), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file' });
+  res.json({ url: `/photos/${req.file.filename}` });
+});
+
+// CORS + Security Headers
 app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Nostr-Pubkey, X-Nostr-Sig, X-Pow-Nonce');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.removeHeader('X-Powered-By');
   next();
 });
 
@@ -154,9 +208,10 @@ app.get('/api/products', (req, res) => {
 
   const products = db.prepare(query).all(...params);
 
-  // Parse photos JSON
+  // Parse photos JSON + convert seller_npub to bech32 for display
   products.forEach(p => {
     try { p.photos = JSON.parse(p.photos || '[]'); } catch { p.photos = []; }
+    if (p.seller_npub) p.seller_npub = hexToNpub(p.seller_npub);
   });
 
   res.json(products);
@@ -167,6 +222,7 @@ app.get('/api/products/:id', (req, res) => {
   const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(req.params.id);
   if (!product) return res.status(404).json({ error: 'Not found' });
   try { product.photos = JSON.parse(product.photos || '[]'); } catch { product.photos = []; }
+  if (product.seller_npub) product.seller_npub = hexToNpub(product.seller_npub);
   res.json(product);
 });
 
@@ -200,9 +256,10 @@ app.post('/api/products', async (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')
   `);
 
+  const finalRegion = forcedRegionForSeller(seller_telegram) || region || null;
   const result = stmt.run(
     title, description || '', price, price_currency || 'sats',
-    region || null, category || null, JSON.stringify(photos || []),
+    finalRegion, category || null, JSON.stringify(photos || []),
     seller_telegram || null, seller_npub || null
   );
 
@@ -227,18 +284,34 @@ app.post('/api/products', async (req, res) => {
 
   // Announce to Telegram topic Mercasats automatically
   try {
-    const catName = category ? (CATEGORIES.find(c => c.id === category)?.name || category) : '';
-    const priceText = price + (price_currency === 'EUR' ? '€' : ' sats');
+    const catObj = category ? CATEGORIES.find(c => c.id === category) : null;
+    const catName = catObj?.name || category || '';
+    const catEmoji = catObj?.emoji || '';
+    const priceText = (price && !isNaN(Number(price))) ? price + (price_currency === 'EUR' ? '€' : ' sats') : (price || 'A consultar');
     const tgUser = seller_telegram ? (seller_telegram.startsWith('@') ? seller_telegram : '@' + seller_telegram) : null;
     const contact = tgUser || (seller_npub ? seller_npub.substring(0, 16) + '...' : '');
-    const desc = (description || '').substring(0, 150);
+    const desc = (description || '').substring(0, 200);
     const photoUrl = (photos && photos.length > 0) ? (photos[0].startsWith('http') ? photos[0] : `https://mercasats.kilombino.com${photos[0]}`) : null;
-    const text = `🛒 Nou producte a Merca\\-sats\\!\n\n*${tgEscape(title)}*\n${tgEscape(desc)}\n💰 ${tgEscape(priceText)}${catName ? '\n📂 ' + tgEscape(catName) : ''}\n👤 ${tgUser ? tgUser : tgEscape(contact)}\n\n🔗 [mercasats\\.kilombino\\.com](https://mercasats.kilombino.com)`;
+    const regionObj = region ? REGIONS.find(r => r.id === region) : null;
+    const regionName = regionObj?.name || region || '';
+    const regionEmoji = regionObj?.emoji || '';
+    // Determine VENDE or COMPRA from title
+    const isCompra = /compro|compra|busco|\[compra\]/i.test(title);
+    const tipoText = isCompra ? 'COMPRA' : 'VENDE';
+    const text = `🛒 *\\#${tipoText}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}\n📝 *\\#DESCRIPCION* ${tgEscape(title)}\n${tgEscape(desc)}\n👤 ${tgUser ? tgUser : tgEscape(contact)}\n\n🔗 [mercasats\\.kilombino\\.com](https://mercasats.kilombino.com)`;
 
-    const tgMsgId = await sendTelegramAnnounce(text, photoUrl);
+    let tgMsgId = await sendTelegramAnnounce(text, photoUrl);
+    // Retry once if failed
+    if (!tgMsgId) {
+      console.log('[TG] First announce attempt failed, retrying in 3s...');
+      await new Promise(r => setTimeout(r, 3000));
+      tgMsgId = await sendTelegramAnnounce(text, photoUrl);
+    }
     if (tgMsgId) {
       db.prepare('UPDATE products SET telegram_message_id = ?, telegram_chat_id = ? WHERE id = ?')
         .run(String(tgMsgId), '-1002457902120', productId);
+    } else {
+      console.error(`[TG] WARNING: Product ${productId} failed to announce to Telegram after retry!`);
     }
   } catch(e) { console.error('TG announce error:', e); }
 
@@ -261,40 +334,83 @@ const CATEGORIES = [
   { id: 'altres', name: 'Altres' },
 ];
 
+const REGIONS = [
+  { id: 'barcelona', name: 'Barcelona', emoji: '🏛️' },
+  { id: 'maresme', name: 'Maresme', emoji: '🚢' },
+  { id: 'valles', name: 'Vallès', emoji: '🚂' },
+  { id: 'osona', name: 'Osona', emoji: '🍽' },
+  { id: 'girona', name: 'Girona', emoji: '⛅' },
+  { id: 'emporda', name: 'Empordà', emoji: '🏝' },
+  { id: 'tarragona', name: 'Tarragona', emoji: '🐟' },
+  { id: 'baixllobregat', name: 'Baix Llobregat', emoji: '🍔' },
+  { id: 'garraf', name: 'Garraf', emoji: '🔝' },
+  { id: 'penedes', name: 'Penedès', emoji: '⛺' },
+  { id: 'lleida', name: 'Pla de Lleida', emoji: '🍸' },
+  { id: 'zaragoza', name: 'Zaragoza', emoji: '🍑' },
+  { id: 'galicia', name: 'Galicia', emoji: '🐙' },
+  { id: 'sensezna', name: 'Sense zona', emoji: '🌍' },
+];
+
 // --- Ratings API ---
 
 // Get ratings for an npub
 app.get('/api/ratings/:npub', (req, res) => {
-  const ratings = db.prepare('SELECT * FROM ratings WHERE rated_npub = ? ORDER BY created_at DESC').all(req.params.npub);
-  const avg = db.prepare('SELECT AVG(stars) as avg, COUNT(*) as count FROM ratings WHERE rated_npub = ?').get(req.params.npub);
+  const npubHex = npubToHex(req.params.npub);
+  const ratings = db.prepare('SELECT * FROM ratings WHERE rated_npub = ? ORDER BY created_at DESC').all(npubHex);
+  ratings.forEach(r => { r.rater_npub = hexToNpub(r.rater_npub); r.rated_npub = hexToNpub(r.rated_npub); });
+  const avg = db.prepare('SELECT AVG(stars) as avg, COUNT(*) as count FROM ratings WHERE rated_npub = ?').get(npubHex);
   res.json({ ratings, average: Math.round((avg.avg || 0) * 10) / 10, count: avg.count });
+});
+
+// Get ratings for a telegram-only seller (no npub)
+app.get('/api/ratings-tg/:username', (req, res) => {
+  const raw = req.params.username;
+  const username = raw.startsWith('@') ? raw : '@' + raw;
+  const ratings = db.prepare('SELECT * FROM ratings WHERE rated_telegram = ? ORDER BY created_at DESC').all(username);
+  ratings.forEach(r => { r.rater_npub = hexToNpub(r.rater_npub); });
+  const avg = db.prepare('SELECT AVG(stars) as avg, COUNT(*) as count FROM ratings WHERE rated_telegram = ?').get(username);
+  res.json({ telegram: username, ratings, average: Math.round((avg.avg || 0) * 10) / 10, count: avg.count });
 });
 
 // Submit a rating (requires signed Nostr event as proof)
 app.post('/api/ratings', (req, res) => {
-  let { rater_npub, rated_npub, stars, comment, signed_event } = req.body;
+  let { rater_npub, rated_npub, rated_telegram, stars, comment, signed_event } = req.body;
   rater_npub = npubToHex(rater_npub);
-  rated_npub = npubToHex(rated_npub);
-
-  if (!rater_npub || !rated_npub || !stars) {
-    return res.status(400).json({ error: 'rater_npub, rated_npub, and stars required' });
+  if (rated_npub) rated_npub = npubToHex(rated_npub);
+  if (rated_telegram) {
+    rated_telegram = String(rated_telegram).trim();
+    if (!rated_telegram.startsWith('@')) rated_telegram = '@' + rated_telegram;
   }
-  // Verify signed event if provided
-  const verified = signed_event && signed_event.pubkey === rater_npub && signed_event.sig;
-  if (rater_npub === rated_npub) {
+
+  if (!rater_npub || !stars || (!rated_npub && !rated_telegram)) {
+    return res.status(400).json({ error: 'rater_npub, stars, and rated_npub or rated_telegram required' });
+  }
+  if (rated_npub && rater_npub === rated_npub) {
     return res.status(400).json({ error: 'Cannot rate yourself' });
   }
   if (stars < 1 || stars > 5) {
     return res.status(400).json({ error: 'Stars must be 1-5' });
   }
+  // Require signed event as proof of rater identity
+  if (!signed_event || signed_event.pubkey !== rater_npub || !signed_event.sig) {
+    return res.status(403).json({ error: 'Signed Nostr event required matching rater_npub' });
+  }
 
-  const stmt = db.prepare(`
-    INSERT INTO ratings (rater_npub, rated_npub, stars, comment)
-    VALUES (?, ?, ?, ?)
-    ON CONFLICT(rater_npub, rated_npub) DO UPDATE SET stars = ?, comment = ?, created_at = datetime('now')
-  `);
-
-  stmt.run(rater_npub, rated_npub, stars, comment || null, stars, comment || null);
+  if (rated_npub) {
+    db.prepare(`
+      INSERT INTO ratings (rater_npub, rated_npub, rated_telegram, stars, comment)
+      VALUES (?, ?, NULL, ?, ?)
+      ON CONFLICT(rater_npub, rated_npub) WHERE rated_npub IS NOT NULL
+        DO UPDATE SET stars = excluded.stars, comment = excluded.comment, created_at = datetime('now')
+    `).run(rater_npub, rated_npub, stars, comment || null);
+  } else {
+    db.prepare(`
+      INSERT INTO ratings (rater_npub, rated_npub, rated_telegram, stars, comment)
+      VALUES (?, NULL, ?, ?, ?)
+      ON CONFLICT(rater_npub, rated_telegram) WHERE rated_telegram IS NOT NULL
+        DO UPDATE SET stars = excluded.stars, comment = excluded.comment, created_at = datetime('now')
+    `).run(rater_npub, rated_telegram, stars, comment || null);
+  }
   res.json({ ok: true });
 });
 
@@ -309,6 +425,7 @@ app.get('/api/users', (req, res) => {
   `).all();
   users.forEach(u => {
     u.avg_rating = Math.round((u.avg_rating || 0) * 10) / 10;
+    u.npub = hexToNpub(u.npub);
   });
   res.json(users);
 });
@@ -334,22 +451,31 @@ app.post('/api/users/register', (req, res) => {
 });
 
 app.get('/api/users/:npub', (req, res) => {
-  let user = db.prepare('SELECT * FROM npub_profiles WHERE npub = ?').get(req.params.npub);
-  if (!user) user = { npub: req.params.npub, display_name: null, picture: null };
+  const npubHex = npubToHex(req.params.npub);
+  let user = db.prepare('SELECT * FROM npub_profiles WHERE npub = ?').get(npubHex);
+  if (!user) user = { npub: npubHex, display_name: null, picture: null };
+  user.npub = hexToNpub(user.npub);
 
   const ratings = db.prepare(`
     SELECT r.*, np.display_name as rater_name, np.picture as rater_picture
     FROM ratings r LEFT JOIN npub_profiles np ON r.rater_npub = np.npub
     WHERE r.rated_npub = ? ORDER BY r.created_at DESC
-  `).all(req.params.npub);
+  `).all(npubHex);
+  ratings.forEach(r => {
+    r.rater_npub = hexToNpub(r.rater_npub);
+    r.rated_npub = hexToNpub(r.rated_npub);
+  });
 
-  const avg = db.prepare('SELECT AVG(stars) as avg, COUNT(*) as count FROM ratings WHERE rated_npub = ?').get(req.params.npub);
+  const avg = db.prepare('SELECT AVG(stars) as avg, COUNT(*) as count FROM ratings WHERE rated_npub = ?').get(npubHex);
 
   // Products by this user
   const products = db.prepare(
     'SELECT * FROM products WHERE active = 1 AND (seller_npub = ? OR seller_telegram = ?) ORDER BY created_at DESC'
-  ).all(req.params.npub, req.params.npub);
-  products.forEach(p => { try { p.photos = JSON.parse(p.photos || '[]'); } catch { p.photos = []; } });
+  ).all(npubHex, req.params.npub);
+  products.forEach(p => {
+    try { p.photos = JSON.parse(p.photos || '[]'); } catch { p.photos = []; }
+    if (p.seller_npub) p.seller_npub = hexToNpub(p.seller_npub);
+  });
 
   res.json({
     user, ratings, products,
@@ -360,7 +486,7 @@ app.get('/api/users/:npub', (req, res) => {
 
 // --- My profile data ---
 app.get('/api/me/:npub', (req, res) => {
-  const npub = req.params.npub;
+  const npub = npubToHex(req.params.npub);
 
   // My products
   const products = db.prepare(
@@ -400,37 +526,63 @@ app.get('/api/me/:npub', (req, res) => {
 
 // --- Seller reputation summary ---
 app.get('/api/seller/:identifier', (req, res) => {
-  const id = req.params.identifier;
+  const rawId = req.params.identifier;
+  const id = rawId.startsWith('npub') ? npubToHex(rawId) : rawId;
   // Could be npub or telegram username
   const products = db.prepare(
     'SELECT * FROM products WHERE active = 1 AND (seller_npub = ? OR seller_telegram = ?) ORDER BY created_at DESC'
-  ).all(id, id);
+  ).all(id, rawId);
 
   products.forEach(p => {
     try { p.photos = JSON.parse(p.photos || '[]'); } catch { p.photos = []; }
   });
 
   let rating = { average: 0, count: 0 };
-  if (id.startsWith('npub') || id.length === 64) {
+  let ratings = [];
+  let user = { npub: id, display_name: null, picture: null };
+
+  if (id.length === 64) {
     const avg = db.prepare('SELECT AVG(stars) as avg, COUNT(*) as count FROM ratings WHERE rated_npub = ?').get(id);
     rating = { average: Math.round((avg.avg || 0) * 10) / 10, count: avg.count };
+
+    ratings = db.prepare(`
+      SELECT r.*, np.display_name as rater_name, np.picture as rater_picture
+      FROM ratings r LEFT JOIN npub_profiles np ON r.rater_npub = np.npub
+      WHERE r.rated_npub = ? ORDER BY r.created_at DESC
+    `).all(id);
+    ratings.forEach(r => { r.rater_npub = hexToNpub(r.rater_npub); r.rated_npub = hexToNpub(r.rated_npub); });
+
+    const profile = db.prepare('SELECT * FROM npub_profiles WHERE npub = ?').get(id);
+    if (profile) {
+      user = { npub: hexToNpub(profile.npub), display_name: profile.display_name, picture: profile.picture };
+    }
   }
 
-  res.json({ products, rating });
+  res.json({ user, products, ratings, average: rating.average, count: rating.count });
 });
 
 // --- Internal API for Telegram scraper (called by Clawilom) ---
 app.post('/api/internal/product', async (req, res) => {
   const { title, description, price, price_currency, region, category, photos, seller_telegram, seller_npub, telegram_message_id, telegram_chat_id } = req.body;
 
+  // Duplicate detection: reject if same title + seller within 5 minutes
+  const dup = db.prepare(
+    "SELECT id FROM products WHERE title = ? AND seller_telegram = ? AND created_at > datetime('now', '-5 minutes') LIMIT 1"
+  ).get(title, seller_telegram || null);
+  if (dup) {
+    console.log(`[Scraper] Duplicate rejected: "${title}" from ${seller_telegram} (existing ID ${dup.id})`);
+    return res.json({ id: dup.id, duplicate: true });
+  }
+
   const stmt = db.prepare(`
     INSERT INTO products (title, description, price, price_currency, region, category, photos, seller_telegram, seller_npub, source, telegram_message_id, telegram_chat_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'telegram', ?, ?)
   `);
 
+  const finalRegion = forcedRegionForSeller(seller_telegram) || region || null;
   const result = stmt.run(
     title, description || '', price, price_currency || 'sats',
-    region || null, category || null, JSON.stringify(photos || []),
+    finalRegion, category || null, JSON.stringify(photos || []),
     seller_telegram || null, seller_npub || null, telegram_message_id || null, telegram_chat_id || null
   );
 
@@ -466,6 +618,7 @@ app.get('/api/categories', (req, res) => {
     { id: 'vehicle', name: 'Vehicle & Motor', emoji: '🚗' },
     { id: 'esport', name: 'Esport & Salut', emoji: '💪' },
     { id: 'llar', name: 'Llar & Immoble', emoji: '🏠' },
+    { id: 'mobils', name: 'Mòbils & Tauletes', emoji: '📱' },
     { id: 'altres', name: 'Altres', emoji: '📦' },
   ];
 
@@ -485,16 +638,19 @@ app.get('/api/categories', (req, res) => {
 app.get('/api/regions', (req, res) => {
   const regions = [
     { id: 'barcelona', name: 'Barcelona', emoji: '🏛️' },
-    { id: 'maresme', name: 'Maresme', emoji: '🏖️' },
-    { id: 'valles', name: 'Vallès', emoji: '⛰️' },
-    { id: 'osona', name: 'Osona', emoji: '🌲' },
-    { id: 'girona', name: 'Girona', emoji: '🏰' },
-    { id: 'emporda', name: 'Empordà', emoji: '🌊' },
-    { id: 'tarragona', name: 'Tarragona', emoji: '🏺' },
-    { id: 'baixllobregat', name: 'Baix Llobregat', emoji: '🏭' },
-    { id: 'garraf', name: 'Garraf', emoji: '⛱️' },
-    { id: 'penedes', name: 'Penedès', emoji: '🍷' },
-    { id: 'lleida', name: 'Pla de Lleida', emoji: '🌾' },
+    { id: 'maresme', name: 'Maresme', emoji: '🚢' },
+    { id: 'valles', name: 'Vallès', emoji: '🚂' },
+    { id: 'osona', name: 'Osona', emoji: '🍽' },
+    { id: 'girona', name: 'Girona', emoji: '⛅' },
+    { id: 'emporda', name: 'Empordà', emoji: '🏝' },
+    { id: 'tarragona', name: 'Tarragona', emoji: '🐟' },
+    { id: 'baixllobregat', name: 'Baix Llobregat', emoji: '🍔' },
+    { id: 'garraf', name: 'Garraf', emoji: '🔝' },
+    { id: 'penedes', name: 'Penedès', emoji: '⛺' },
+    { id: 'lleida', name: 'Pla de Lleida', emoji: '🍸' },
+    { id: 'zaragoza', name: 'Zaragoza', emoji: '🍑' },
+    { id: 'galicia', name: 'Galicia', emoji: '🐙' },
+    { id: 'sensezna', name: 'Sense zona', emoji: '🌍' },
   ];
   res.json(regions);
 });
@@ -506,19 +662,75 @@ app.get('/api/products/:id/status', (req, res) => {
   res.json(product);
 });
 
+// --- Reserve product (seller only) ---
+app.post('/api/products/:id/reserve', async (req, res) => {
+  const { reserved_by, signed_event, seller_npub } = req.body;
+  if (!reserved_by) return res.status(400).json({ error: 'reserved_by required' });
+
+  const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(req.params.id);
+  if (!product) return res.status(404).json({ error: 'Not found' });
+
+  // Verify ownership: seller_npub from request must match product seller
+  if (product.seller_npub) {
+    const requestNpub = signed_event?.pubkey || seller_npub;
+    if (requestNpub) {
+      const reqHex = npubToHex(requestNpub);
+      if (product.seller_npub !== reqHex) {
+        return res.status(403).json({ error: 'Només el venedor pot reservar el seu producte' });
+      }
+    }
+  }
+
+  db.prepare("UPDATE products SET reserved = 1, reserved_by = ?, reserved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
+    .run(reserved_by, req.params.id);
+
+  // Notify on Telegram
+  try {
+    const priceText = product.price + (product.price_currency === 'EUR' ? '€' : ' sats');
+    const text = `🔒 *Reservat\\!*\n\n*${tgEscape(product.title)}*\n💰 ${tgEscape(priceText)}\n\n📌 Reservat per: ${tgEscape(reserved_by)}\n👤 Venedor: ${product.seller_telegram || tgEscape((product.seller_npub || '').substring(0, 16))}\n\n🔗 [mercasats\\.kilombino\\.com](https://mercasats.kilombino.com)`;
+    await sendTelegramAnnounce(text, null);
+  } catch(e) { console.error('TG reserve announce error:', e); }
+
+  // Notify on Nostr
+  try {
+    const { publishProduct } = require('./nostr-publish');
+    const content = `🔒 Reservat: ${product.title}\nReservat per: ${reserved_by}\nPreu: ${product.price} ${product.price_currency}`;
+    const event = require('nostr-tools/pure').finalizeEvent({
+      kind: 1,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [['t', 'mercasats'], ['t', 'reserva']],
+      content,
+    }, Uint8Array.from(Buffer.from(process.env.NOSTR_NSEC_HEX, 'hex')));
+    const { publishToRelays } = require('./nostr-publish');
+    await publishToRelays(event);
+  } catch(e) { console.error('Nostr reserve error:', e); }
+
+  res.json({ ok: true, reserved: true, reserved_by });
+});
+
+// --- Unreserve product ---
+app.post('/api/products/:id/unreserve', (req, res) => {
+  const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(req.params.id);
+  if (!product) return res.status(404).json({ error: 'Not found' });
+
+  db.prepare("UPDATE products SET reserved = 0, reserved_by = NULL, reserved_at = NULL, updated_at = datetime('now') WHERE id = ?")
+    .run(req.params.id);
+
+  res.json({ ok: true, reserved: false });
+});
+
 // --- Delete product (owner only, requires signed event) ---
 app.delete('/api/products/:id', async (req, res) => {
-  const { signed_event } = req.body;
-  if (!signed_event || !signed_event.pubkey) {
-    return res.status(403).json({ error: 'Signed Nostr event required' });
-  }
+  const { signed_event, seller_npub } = req.body;
 
   const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
   if (!product) return res.status(404).json({ error: 'Not found' });
 
-  // Verify ownership: seller_npub must match signer
-  const signerHex = npubToHex(signed_event.pubkey);
-  if (product.seller_npub && product.seller_npub !== signerHex) {
+  // Verify ownership: signed_event pubkey OR seller_npub must match
+  const requestNpub = signed_event?.pubkey || seller_npub;
+  if (!requestNpub) return res.status(403).json({ error: 'Seller identity required' });
+  const reqHex = npubToHex(requestNpub);
+  if (product.seller_npub && product.seller_npub !== reqHex) {
     return res.status(403).json({ error: 'Not your product' });
   }
 
@@ -531,8 +743,17 @@ app.delete('/api/products/:id', async (req, res) => {
     try {
       await deleteTelegramMessage(product.telegram_chat_id, product.telegram_message_id);
       console.log(`[Delete] TG message ${product.telegram_message_id} deleted`);
-    } catch(e) { console.error('[Delete] TG error:', e.message); }
+    } catch(e) {
+      console.error('[Delete] TG delete error:', e.message);
+    }
   }
+
+  // 2b. Announce deletion in Telegram topic
+  try {
+    const seller = product.seller_telegram ? (product.seller_telegram.startsWith('@') ? product.seller_telegram : '@' + product.seller_telegram) : 'Anonim';
+    const delText = `🗑️ *Anunci eliminat*\n\n*${tgEscape(product.title)}*\n👤 ${seller}\n\nEl venedor ha retirat aquest anunci\\.`;
+    await sendTelegramAnnounce(delText, null);
+  } catch(e) { console.error('[Delete] TG announce error:', e.message); }
 
   // 3. Delete from Nostr (publish deletion event kind 5)
   if (product.nostr_event_id) {
@@ -543,6 +764,100 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 
   res.json({ ok: true, deleted: product.id });
+});
+
+// --- Edit product (owner only, requires signed event) ---
+const editCooldown = new Map();
+const EDIT_MIN_INTERVAL_MS = 30_000;
+
+app.put('/api/products/:id', async (req, res) => {
+  const { signed_event, title, description, price, price_currency, region, category } = req.body;
+
+  const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+  if (!product) return res.status(404).json({ error: 'Not found' });
+  if (!product.active) return res.status(400).json({ error: 'Product not active' });
+
+  // Verify ownership via signed event
+  if (!signed_event || !signed_event.sig || !signed_event.pubkey) {
+    return res.status(403).json({ error: 'Signed Nostr event required to edit' });
+  }
+  if (!product.seller_npub || signed_event.pubkey !== product.seller_npub) {
+    return res.status(403).json({ error: 'Not your product' });
+  }
+
+  // Rate-limit: one edit every 30s per product to prevent flood
+  const now = Date.now();
+  const last = editCooldown.get(product.id) || 0;
+  if (now - last < EDIT_MIN_INTERVAL_MS) {
+    const wait = Math.ceil((EDIT_MIN_INTERVAL_MS - (now - last)) / 1000);
+    return res.status(429).json({ error: `Espera ${wait}s abans d'editar de nou` });
+  }
+  editCooldown.set(product.id, now);
+
+  // Validate inputs
+  const newTitle = typeof title === 'string' && title.trim() ? title.trim() : product.title;
+  const newDesc = (typeof description === 'string') ? description : product.description;
+  const newPrice = (price !== undefined && price !== null && String(price).trim() !== '') ? String(price).trim() : product.price;
+  const newCurrency = price_currency || product.price_currency;
+  const newRegion = (region === null || typeof region === 'string') ? region : product.region;
+  const newCategory = (category === null || typeof category === 'string') ? category : product.category;
+
+  db.prepare(`UPDATE products SET title = ?, description = ?, price = ?, price_currency = ?, region = ?, category = ?, updated_at = datetime('now') WHERE id = ?`)
+    .run(newTitle, newDesc, newPrice, newCurrency, newRegion, newCategory, req.params.id);
+
+  const updated = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
+
+  // Republish to Nostr (client's signed event if valid, else marketplace key with same d-tag)
+  try {
+    const parsedPhotos = JSON.parse(updated.photos || '[]');
+    const nostrEventId = await publishProduct({
+      id: updated.id, title: updated.title, description: updated.description,
+      price: updated.price, price_currency: updated.price_currency,
+      seller_npub: updated.seller_npub, seller_telegram: updated.seller_telegram,
+      photos: parsedPhotos, category: updated.category, region: updated.region,
+    }, signed_event);
+    if (nostrEventId) {
+      db.prepare('UPDATE products SET nostr_event_id = ? WHERE id = ?').run(nostrEventId, updated.id);
+    }
+  } catch(e) { console.error('[Edit] Nostr publish error:', e.message); }
+
+  // Update Telegram caption
+  if (updated.telegram_message_id && updated.telegram_chat_id) {
+    try {
+      const catObj = updated.category ? CATEGORIES.find(c => c.id === updated.category) : null;
+      const catName = catObj?.name || updated.category || '';
+      const catEmoji = '';
+      const priceText = (updated.price && !isNaN(Number(updated.price))) ? updated.price + (updated.price_currency === 'EUR' ? '€' : ' sats') : (updated.price || 'A consultar');
+      const tgUser = updated.seller_telegram ? (updated.seller_telegram.startsWith('@') ? updated.seller_telegram : '@' + updated.seller_telegram) : null;
+      const contact = tgUser || (updated.seller_npub ? updated.seller_npub.substring(0, 16) + '...' : '');
+      const desc = (updated.description || '').substring(0, 200);
+      const regionObj = updated.region ? REGIONS.find(r => r.id === updated.region) : null;
+      const regionName = regionObj?.name || updated.region || '';
+      const regionEmoji = regionObj?.emoji || '';
+      const isCompra = /compro|compra|busco|\[compra\]/i.test(updated.title);
+      const tipoText = isCompra ? 'COMPRA' : 'VENDE';
+      const caption = `🛒 *\\#${tipoText}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}\n📝 *\\#DESCRIPCION* ${tgEscape(updated.title)}\n${tgEscape(desc)}\n👤 ${tgUser ? tgUser : tgEscape(contact)}\n\n🔗 [mercasats\\.kilombino\\.com](https://mercasats.kilombino.com)`;
+      const https = require('https');
+      const postData = JSON.stringify({
+        chat_id: updated.telegram_chat_id,
+        message_id: Number(updated.telegram_message_id),
+        caption,
+        parse_mode: 'MarkdownV2',
+      });
+      await new Promise((resolve) => {
+        const r = https.request({
+          hostname: 'api.telegram.org',
+          path: `/bot${process.env.TG_BOT_TOKEN}/editMessageCaption`,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
+        }, (rsp) => { rsp.on('data', () => {}); rsp.on('end', resolve); });
+        r.on('error', () => resolve());
+        r.write(postData); r.end();
+      });
+    } catch(e) { console.error('[Edit] TG edit error:', e.message); }
+  }
+
+  res.json({ ok: true, product: updated });
 });
 
 // --- Internal photo update (called by telegram scraper for follow-up photos) ---
@@ -759,7 +1074,12 @@ app.get('/api/notifications', (req, res) => {
     "SELECT id, title, price, price_currency, photos, seller_telegram, buyer_npub, sold_at FROM products WHERE sold = 1 AND sold_at > ? ORDER BY sold_at DESC LIMIT 10"
   ).all(since);
 
-  res.json({ newProducts, newRatings, removedProducts, soldProducts });
+  // Recently reserved products
+  const reservedProducts = db.prepare(
+    "SELECT id, title, price, price_currency, photos, seller_telegram, reserved_by, reserved_at FROM products WHERE reserved = 1 AND reserved_at > ? ORDER BY reserved_at DESC LIMIT 10"
+  ).all(since);
+
+  res.json({ newProducts, newRatings, removedProducts, soldProducts, reservedProducts });
 });
 
 // --- CORS preflight for DELETE ---

@@ -56,5 +56,8 @@ if (!columns.includes('sold')) db.exec(`ALTER TABLE products ADD COLUMN sold INT
 if (!columns.includes('buyer_npub')) db.exec(`ALTER TABLE products ADD COLUMN buyer_npub TEXT`);
 if (!columns.includes('sold_at')) db.exec(`ALTER TABLE products ADD COLUMN sold_at TEXT`);
 if (!columns.includes('category')) db.exec(`ALTER TABLE products ADD COLUMN category TEXT`);
+if (!columns.includes('reserved')) db.exec(`ALTER TABLE products ADD COLUMN reserved INTEGER DEFAULT 0`);
+if (!columns.includes('reserved_by')) db.exec(`ALTER TABLE products ADD COLUMN reserved_by TEXT`);
+if (!columns.includes('reserved_at')) db.exec(`ALTER TABLE products ADD COLUMN reserved_at TEXT`);
 
 module.exports = db;

@@ -16,6 +16,7 @@
     "better-sqlite3": "^12.8.0",
     "esbuild": "^0.28.0",
     "express": "^5.2.1",
+    "multer": "^2.1.1",
     "nostr-tools": "^2.23.3",
     "qrcode": "^1.5.4",
     "ws": "^8.20.0"

@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Merca-sats</title>
-  <link rel="icon" href="/logo.jpg">
+  <link rel="icon" href="/favicon.ico">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -196,16 +197,50 @@
     .main { flex: 1; padding: 0; max-width: none; margin: 0; }
     .sidebar {
       width: 280px; flex-shrink: 0;
+      display: flex; flex-direction: column; gap: 16px;
+      position: sticky; top: 20px; align-self: flex-start;
+      max-height: calc(100vh - 40px); overflow-y: auto;
     }
     .sidebar-card {
       background: var(--card); border: 1px solid var(--border); border-radius: 12px;
-      padding: 16px; position: sticky; top: 20px;
+      padding: 16px;
+    }
+    .comunitat-card .links {
+      display: flex; flex-direction: column; gap: 10px; margin-top: 12px;
+    }
+    .comunitat-card .links a.tg-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: #229ED9; color: #fff; text-decoration: none;
+      padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: 14px;
+      transition: filter 0.2s;
+    }
+    .comunitat-card .links a.tg-btn:hover { filter: brightness(1.15); }
+    .comunitat-card .links a.zap-btn {
+      display: block; line-height: 0;
+    }
+    .comunitat-card .links a.zap-btn img {
+      width: 100%; height: auto; border-radius: 8px;
+      transition: transform 0.2s;
+    }
+    .comunitat-card .links a.zap-btn img:hover { transform: scale(1.03); }
+    .comunitat-card .links .npub-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: #7B1FA2; color: #fff; border: none; cursor: pointer;
+      padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: 14px;
+      transition: filter 0.2s; width: 100%; font-family: inherit;
+    }
+    .comunitat-card .links .npub-btn:hover { filter: brightness(1.15); }
+    .comunitat-card .links .npub-btn.copied {
+      background: #2e7d32;
+    }
+    .comunitat-card p {
+      color: var(--muted); font-size: 13px; line-height: 1.45; margin: 0;
     }
     .sidebar-card h3 {
       color: var(--accent); font-size: 1em; margin-bottom: 12px;
       padding-bottom: 8px; border-bottom: 1px solid var(--border);
     }
-    .user-list { max-height: 70vh; overflow-y: auto; }
+    .user-list { max-height: none; overflow: visible; }
     .user-item {
       display: flex; align-items: center; gap: 10px; padding: 8px 6px;
       border-bottom: 1px solid var(--border); cursor: pointer;
@@ -214,9 +249,9 @@
     .user-item:hover { background: rgba(247,147,26,0.08); }
     .user-item:last-child { border-bottom: none; }
     .user-avatar {
-      width: 36px; height: 36px; border-radius: 50%; background: var(--border);
+      width: 44px; height: 44px; border-radius: 50%; background: var(--border);
       display: flex; align-items: center; justify-content: center;
-      font-size: 16px; color: var(--accent); flex-shrink: 0;
+      font-size: 18px; color: var(--accent); flex-shrink: 0;
     }
     .user-info-col { flex: 1; min-width: 0; }
     .user-name {
@@ -232,8 +267,33 @@
     @media (max-width: 900px) {
       .content-wrapper { flex-direction: column; padding: 10px; }
       .sidebar { width: 100%; order: 2; }
-      .sidebar-card { position: static; }
-      .user-list { max-height: 200px; }
+      .sidebar { position: static; max-height: none; overflow: visible; }
+      .user-list { max-height: 200px; overflow-y: auto; }
+    }
+
+    .header-inner {
+      display: flex; align-items: center; justify-content: center;
+      gap: 30px; max-width: 1200px; margin: 0 auto;
+    }
+    .header-center {
+      text-align: center; flex-shrink: 0;
+    }
+    .header-side {
+      flex: 1; max-width: 350px;
+    }
+    .header-side h4 {
+      color: var(--accent); font-size: 0.85em; margin: 0 0 6px 0;
+    }
+    .header-side p {
+      color: var(--muted); font-size: 11px; line-height: 1.5; margin: 0;
+    }
+    .header-left { text-align: right; }
+    .header-right { text-align: left; }
+    .header-side a { color: var(--accent); text-decoration: none; }
+
+    @media (max-width: 768px) {
+      .header-inner { flex-direction: column; gap: 12px; }
+      .header-side { max-width: 100%; text-align: center !important; }
     }
 
     .footer {
@@ -298,9 +358,21 @@
 <body>
 
 <div class="header">
-  <img src="/logo.jpg" alt="Merca-sats" style="height:80px;border-radius:12px;margin-bottom:8px">
-  <h1>Merca<span>-sats</span></h1>
-  <p>Mercat P2P de Trobades Bitcoiners</p>
+  <div class="header-inner">
+    <div class="header-side header-left">
+      <h4>🟠 Què és Merca-sats?</h4>
+      <p>Organitzador d'anuncis de béns i serveis per bitcoin a Catalunya. Connectem compradors i venedors de <a href="https://t.me/trobadesbitcoiners" target="_blank">Trobades Bitcoiners</a> a través de la web, l'app i Telegram. Pagaments directes entre parts, en bitcoin o sats.</p>
+    </div>
+    <div class="header-center">
+      <img src="/logo.jpg" alt="Merca-sats" style="height:80px;border-radius:12px;margin-bottom:8px">
+      <h1>Merca<span>-sats</span></h1>
+      <p>Mercat P2P de Trobades Bitcoiners</p>
+    </div>
+    <div class="header-side header-right">
+      <h4>📋 Termes i condicions</h4>
+      <p>Projecte sense ànim de lucre. Únic objectiu: posar en contacte compradors i venedors d'acord amb les lleis d'Espanya. No participem en transaccions ni gestionem pagaments. No ens fem responsables de tractes insatisfets. Les disputes repercuteixen en la reputació de l'anunciant. L'ús implica l'acceptació d'aquests termes.</p>
+    </div>
+  </div>
 </div>
 
 <div class="toolbar">
@@ -332,6 +404,21 @@
     </div>
   </div>
   <div class="sidebar">
+    <div class="sidebar-card comunitat-card">
+      <h3>📲 Comunitat</h3>
+      <p>Únete a la comunitat de Trobades Bitcoiners i descarrega't l'app de Merca-sats des de Zapstore.</p>
+      <div class="links">
+        <a class="tg-btn" href="https://t.me/trobadesbitcoiners" target="_blank" rel="noopener">
+          💬 Trobades Bitcoiners (Telegram)
+        </a>
+        <a class="zap-btn" href="https://zapstore.dev" target="_blank" rel="noopener" title="Descarrega Merca-sats des de Zapstore">
+          <img src="/zapstore-badge.png" alt="Get it on Zapstore">
+        </a>
+        <button class="npub-btn" onclick="copyNpub()" title="Copiar npub de Trobades Bitcoiners">
+          🟣 npub (Nostr)
+        </button>
+      </div>
+    </div>
     <div class="sidebar-card">
       <h3>👥 Usuaris registrats</h3>
       <div class="user-list" id="userList">
@@ -344,6 +431,9 @@
 <div class="footer">
   <p>Merca-sats — Mercat P2P de la comunitat <a href="https://t.me/trobadesbitcoiners" target="_blank">Trobades Bitcoiners</a></p>
   <p>Pagaments en Bitcoin ⚡</p>
+  <a href="https://t.me/trobadesbitcoiners" target="_blank" rel="noopener">
+    <img src="/trobades-logo.jpg" alt="Trobades Bitcoiners" style="height:120px;border-radius:16px;margin-top:12px;transition:transform 0.2s;cursor:pointer" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+  </a>
 </div>
 
 <!-- New Product Modal -->
@@ -405,6 +495,7 @@
     <div id="productDetailDesc" style="color:var(--muted);font-size:14px;margin-bottom:16px;line-height:1.5"></div>
     <div id="productDetailMeta" style="font-size:13px;color:var(--muted);margin-bottom:16px;padding:12px;background:var(--bg);border-radius:8px"></div>
     <div id="productDetailSeller" style="border-top:1px solid var(--border);padding-top:16px;margin-bottom:12px"></div>
+    <div id="productDetailReserve"></div>
     <div id="productDetailZap"></div>
     <div id="productDetailRating" style="border-top:1px solid var(--border);padding-top:16px"></div>
     <div id="productDetailDelete"></div>
@@ -442,7 +533,7 @@
       </div>
       <div id="connectWaiting" style="display:none;color:var(--muted);font-size:13px">
         <div style="display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-right:8px;vertical-align:middle"></div>
-        Waiting for connection...
+        Paciencia, espera unos segundos...
       </div>
       <button onclick="navigator.clipboard.writeText(window._connStr);this.textContent='✅ Copied!';setTimeout(()=>{this.textContent='📋 Copy connection string'},2000)" id="copyBtn" style="display:none;margin-top:8px" class="btn btn-outline">📋 Copy connection string</button>
       <p style="color:var(--muted);font-size:12px;margin-top:12px">Scan with Amber, Primal, or any NIP-46 signer</p>
@@ -482,6 +573,48 @@
   </div>
 </div>
 
+<!-- Edit Product Modal -->
+<div class="modal-overlay" id="editProductModal">
+  <div class="modal">
+    <h2>✏️ Editar producte</h2>
+    <input type="hidden" id="epId">
+    <div class="form-group">
+      <label>Titol *</label>
+      <input type="text" id="epTitle">
+    </div>
+    <div class="form-group">
+      <label>Descripció</label>
+      <textarea id="epDesc" rows="3" placeholder="Detalls del producte..."></textarea>
+    </div>
+    <div class="form-group">
+      <label>Preu *</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="epPrice" style="flex:1">
+        <select id="epCurrency" style="width:100px">
+          <option value="sats">sats</option>
+          <option value="EUR">EUR</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Categoria</label>
+      <select id="epCategory">
+        <option value="">Sense especificar</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Zona</label>
+      <select id="epRegion">
+        <option value="">Sense especificar</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:20px">
+      <button class="btn btn-accent" onclick="submitEditProduct()" id="epSubmitBtn">Guardar</button>
+      <button class="btn btn-outline" onclick="closeModal('editProductModal')">Cancel·lar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Rating Modal -->
 <div class="modal-overlay" id="ratingModal">
   <div class="modal">
@@ -510,6 +643,18 @@
 </div>
 
 <script>
+const TROBADES_NPUB = 'npub1qqqqqq58mqqqpdppmg00j4t2j6tgnswzr4z4s2mpsnx9zcnej9tq2wrgal';
+
+function copyNpub() {
+  navigator.clipboard.writeText(TROBADES_NPUB).then(() => {
+    const btn = document.querySelector('.npub-btn');
+    const orig = btn.textContent;
+    btn.textContent = '✅ Copiat!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
 const API = '';
 let userNpub = null;
 let selectedStars = 0;
@@ -604,15 +749,22 @@ function renderProducts(products) {
     const currency = (p.price_currency || '').toUpperCase() === 'EUR' ? '€' : ' sats';
     const priceDisplay = (p.price_currency || '').toUpperCase() === 'EUR' ? `${escapeHtml(p.price)}€` : `${escapeHtml(p.price)} sats`;
 
+    const reservedBadge = p.reserved ? `<div style="background:#f59e0b;color:#000;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;position:absolute;top:8px;right:8px;z-index:1">🔒 RESERVAT${p.reserved_by ? ' per ' + escapeHtml(p.reserved_by) : ''}</div>` : '';
+    const soldBadge = p.sold ? `<div style="background:#ef4444;color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;position:absolute;top:8px;right:8px;z-index:1">VENUT</div>` : '';
+    const isOwner = userNpub && p.seller_npub === userNpub;
+    const editBtn = isOwner ? `<button class="btn" onclick="event.stopPropagation();openEditProduct(${p.id})" style="background:var(--accent);color:#000;padding:4px 10px;font-size:12px;position:absolute;top:8px;left:8px;z-index:1" title="Editar">✏️ Editar</button>` : '';
+
     return `
-      <div class="product-card" onclick="openProductDetail(${p.id})" style="cursor:pointer">
+      <div class="product-card" onclick="openProductDetail(${p.id})" style="cursor:pointer;position:relative">
+        ${soldBadge || reservedBadge}
+        ${editBtn}
         ${photo}
         <div class="product-body">
           <div class="product-title">${escapeHtml(p.title)}</div>
           <div class="product-desc">${escapeHtml(p.description || '')}</div>
           <div class="product-price">${priceDisplay}</div>
           <div class="product-meta">
-            <div class="product-seller">👤 ${sellerLink}</div>
+            <div class="product-seller">👤 ${sellerLink}${p.seller_npub ? ` <span onclick="event.stopPropagation();navigator.clipboard.writeText('${hexToNpub(p.seller_npub)}');this.textContent='✅'" style="cursor:pointer;font-size:11px;color:var(--accent);margin-left:4px" title="Copiar npub">📋</span>` : ''}</div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               ${catText ? `<span class="product-source">${catText}</span>` : ''}
               ${regionText ? `<span style="font-size:12px">${regionText}</span>` : ''}
@@ -656,7 +808,7 @@ function renderUsers() {
     const stars = u.rating_count > 0 ? '★'.repeat(Math.round(u.avg_rating)) + '☆'.repeat(5 - Math.round(u.avg_rating)) : '';
     const ratingText = u.rating_count > 0 ? `${u.avg_rating}/5 (${u.rating_count})` : 'Sense valoracions';
     const avatar = u.picture
-      ? `<img src="${escapeHtml(u.picture)}" style="width:36px;height:36px;border-radius:50%;object-fit:cover" onerror="this.outerHTML='<div class=user-avatar>👤</div>'">`
+      ? `<img src="${escapeHtml(u.picture)}" style="width:44px;height:44px;border-radius:50%;object-fit:cover;image-rendering:auto" loading="lazy" onerror="this.outerHTML='<div class=user-avatar>👤</div>'">`
       : '<div class="user-avatar">👤</div>';
     return `
       <div class="user-item" onclick="openUserProfile('${u.npub}')">
@@ -747,14 +899,19 @@ let nip46client = null;
 
 async function handleLogin() {
   if (userNpub) {
-    // Logout
+    // Logout — clear everything
     userNpub = null; canSign = false;
-    if (nip46client) { nip46client.abort(); nip46client = null; }
+    if (nip46client) { try { nip46client.abort(); } catch(e) {} nip46client = null; }
     window.nostr = undefined;
+    window._myDisplayName = null;
+    window._myPicture = null;
     document.getElementById('nostrStatus').textContent = '';
+    document.getElementById('nostrStatus').className = 'nostr-status';
     document.getElementById('nostrBtn').textContent = '🔐 Login';
     document.getElementById('nostrBtn').style.display = '';
     document.getElementById('profileBtn').style.display = 'none';
+    // Close profile modal if open
+    document.getElementById('profileModal').classList.remove('active');
     return;
   }
   await requestSigner();
@@ -1019,7 +1176,17 @@ async function completeLogin(pubkeyHex) {
 // --- New Product ---
 async function openNewProduct() {
   // Ensure we have a signer before opening the form
-  if (!window.nostr?.signEvent) {
+  if (!window.nostr?.signEvent && !(nip46client && nip46client.userPubkey)) {
+    const go = confirm(
+      "Cal estar loguejat amb Nostr per publicar un anunci des de la web.\n\n" +
+      "· Accepta per iniciar sessió amb Nostr (extensió o Amber/NIP-46).\n" +
+      "· Cancel·la per publicar via Telegram al canal de Trobades Bitcoiners:\n" +
+      "  https://t.me/trobadesbitcoiners/2106"
+    );
+    if (!go) {
+      window.open('https://t.me/trobadesbitcoiners/2106', '_blank', 'noopener');
+      return;
+    }
     await requestSigner();
     if (!window.nostr?.signEvent) return;
   }
@@ -1108,13 +1275,18 @@ async function submitProduct() {
 
     let signedEvent;
     try {
-      if (window.nostr?.signEvent) {
+      if (window.nostr && typeof window.nostr.signEvent === 'function') {
         signedEvent = await window.nostr.signEvent(productEvent);
       } else if (isMobile) {
         signedEvent = await amberSignEvent(productEvent);
+      } else {
+        return alert('Cal iniciar sessió amb Nostr primer (botó Login). Si ja ho has fet, recarrega la pàgina i torna a provar.');
       }
       if (!signedEvent?.sig) return alert('Firma cancel·lada');
     } catch(e) {
+      if (e.message?.includes('null') || e.message?.includes('signEvent')) {
+        return alert('La sessió Nostr ha caducat. Recarrega la pàgina i fes login de nou.');
+      }
       return alert('Error firmant: ' + e.message);
     }
 
@@ -1298,7 +1470,8 @@ async function openProductDetail(id) {
     // Seller info
     const sellerEl = document.getElementById('productDetailSeller');
     const sellerLink = p.seller_telegram ? `<a href="https://t.me/${p.seller_telegram.replace('@','')}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600">${escapeHtml(p.seller_telegram)}</a>` : '';
-    const npubLink = p.seller_npub ? `<span style="cursor:pointer;color:var(--accent)" onclick="event.stopPropagation();closeModal('productModal');openUserProfile('${p.seller_npub}')">${p.seller_npub.substring(0,16)}...</span>` : '';
+    const npubBech32 = p.seller_npub ? hexToNpub(p.seller_npub) : '';
+    const npubLink = p.seller_npub ? `<span style="cursor:pointer;color:var(--accent)" onclick="event.stopPropagation();closeModal('productModal');openUserProfile('${p.seller_npub}')">${npubBech32.substring(0,20)}...</span> <span onclick="event.stopPropagation();navigator.clipboard.writeText('${npubBech32}');this.textContent='✅ Copiat!'" style="cursor:pointer;font-size:12px;color:var(--accent);background:rgba(247,147,26,0.15);padding:2px 8px;border-radius:4px" title="Copiar npub">📋 Copiar npub</span>` : '';
 
     sellerEl.innerHTML = `
       <div style="font-weight:600;margin-bottom:8px">👤 Venedor</div>
@@ -1308,11 +1481,36 @@ async function openProductDetail(id) {
       </div>
     `;
 
-    // Zap buy button (only for sats-priced products)
+    // Reserve section — only visible to the seller (owner)
+    const reserveEl = document.getElementById('productDetailReserve');
+    const isOwner = userNpub && p.seller_npub && npubToHex(userNpub) === npubToHex(p.seller_npub);
+    if (p.reserved) {
+      reserveEl.innerHTML = `
+        <div style="background:#f59e0b;color:#000;padding:12px;border-radius:8px;text-align:center;font-weight:600;margin-bottom:12px">
+          🔒 RESERVAT per ${escapeHtml(p.reserved_by || '?')}
+        </div>
+        ${isOwner ? `<button class="btn btn-outline" style="width:100%;margin-bottom:12px" onclick="unreserveProduct(${p.id})">Treure reserva</button>` : ''}
+      `;
+    } else if (!p.sold && isOwner) {
+      reserveEl.innerHTML = `
+        <div style="margin-bottom:12px;border:1px solid var(--border);border-radius:8px;padding:12px">
+          <div style="font-weight:600;margin-bottom:8px">🔒 Reservar producte</div>
+          <input id="reserveName" type="text" placeholder="Nom de qui reserva..." style="width:100%;padding:8px;margin-bottom:8px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:4px;font-size:14px">
+          <button class="btn btn-accent" style="width:100%" onclick="reserveProduct(${p.id})">Reservar</button>
+        </div>
+      `;
+    } else {
+      reserveEl.innerHTML = '';
+    }
+    if (isOwner) {
+      reserveEl.innerHTML += `<button class="btn btn-outline" style="width:100%;margin-bottom:12px;border-color:var(--accent);color:var(--accent)" onclick="closeModal('productModal');openEditProduct(${p.id})">✏️ Editar anunci</button>`;
+    }
+
+    // Zap buy button (only for other sellers' products, not your own)
     const zapEl = document.getElementById('productDetailZap');
     const isSats = (p.price_currency || 'sats') === 'sats';
     const defaultAmount = isSats && p.price && !isNaN(parseInt(p.price)) ? parseInt(p.price) : '';
-    if (p.seller_npub && !p.sold) {
+    if (p.seller_npub && !p.sold && !isOwner) {
       const priceLabel = isSats ? `${escapeHtml(p.price)} sats` : escapeHtml(p.price) + (((p.price_currency||'').toUpperCase() === 'EUR') ? '€' : ' ' + (p.price_currency||''));
       zapEl.innerHTML = `
         <div style="margin-bottom:8px">
@@ -1341,7 +1539,9 @@ async function openProductDetail(id) {
 
     // Rating section for seller
     const ratingEl = document.getElementById('productDetailRating');
-    if (p.seller_npub) {
+    if (isOwner) {
+      ratingEl.innerHTML = '';
+    } else if (p.seller_npub) {
       ratingEl.innerHTML = `
         <div style="font-weight:600;margin-bottom:8px">⭐ Valorar venedor</div>
         <div class="stars-input" id="productStarsInput">
@@ -1354,12 +1554,28 @@ async function openProductDetail(id) {
         <div class="form-group" style="margin-top:8px">
           <textarea id="productRateComment" placeholder="Comentari opcional..." rows="2"></textarea>
         </div>
-        <button class="btn btn-green" onclick="submitProductRating('${p.seller_npub}')">Enviar valoració</button>
+        <button class="btn btn-green" onclick="submitProductRating({npub:'${p.seller_npub}'})">Enviar valoració</button>
         <button class="btn btn-outline" onclick="closeModal('productModal');openUserProfile('${p.seller_npub}')" style="margin-left:8px">Veure perfil</button>
       `;
       window._productStars = 0;
     } else if (p.seller_telegram) {
-      ratingEl.innerHTML = `<p style="color:var(--muted);font-size:13px">Contacta al venedor per Telegram per valorar-lo.</p>`;
+      const tgEsc = p.seller_telegram.replace(/'/g, "\\'");
+      ratingEl.innerHTML = `
+        <div style="font-weight:600;margin-bottom:8px">⭐ Valorar venedor (${escapeHtml(p.seller_telegram)})</div>
+        <div class="stars-input" id="productStarsInput">
+          <span onclick="setProductStars(1)">★</span>
+          <span onclick="setProductStars(2)">★</span>
+          <span onclick="setProductStars(3)">★</span>
+          <span onclick="setProductStars(4)">★</span>
+          <span onclick="setProductStars(5)">★</span>
+        </div>
+        <div class="form-group" style="margin-top:8px">
+          <textarea id="productRateComment" placeholder="Comentari opcional..." rows="2"></textarea>
+        </div>
+        <button class="btn btn-green" onclick="submitProductRating({telegram:'${tgEsc}'})">Enviar valoració</button>
+        <button class="btn btn-outline" onclick="closeModal('productModal');openTelegramProfile('${tgEsc}')" style="margin-left:8px">Veure valoracions</button>
+      `;
+      window._productStars = 0;
     } else {
       ratingEl.innerHTML = '';
     }
@@ -1383,6 +1599,40 @@ function setProductStars(n) {
   document.querySelectorAll('#productStarsInput span').forEach((s, i) => {
     s.classList.toggle('active', i < n);
   });
+}
+
+async function reserveProduct(productId) {
+  const name = document.getElementById('reserveName')?.value?.trim();
+  if (!name) return alert('Escriu el nom de qui reserva');
+  try {
+    const res = await fetch(`${API}/api/products/${productId}/reserve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reserved_by: name, seller_npub: userNpub })
+    });
+    const data = await res.json();
+    if (data.ok) {
+      closeModal('productModal');
+      loadProducts();
+      alert('✅ Producte reservat per ' + name);
+    } else {
+      alert('Error: ' + (data.error || 'Unknown'));
+    }
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
+async function unreserveProduct(productId) {
+  try {
+    const res = await fetch(`${API}/api/products/${productId}/unreserve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    });
+    const data = await res.json();
+    if (data.ok) {
+      closeModal('productModal');
+      loadProducts();
+    }
+  } catch(e) { alert('Error: ' + e.message); }
 }
 
 async function zapBuyProduct(productId) {
@@ -1433,6 +1683,88 @@ async function zapBuyProduct(productId) {
   }
 }
 
+async function openEditProduct(productId) {
+  try {
+    const res = await fetch(`${API}/api/products/${productId}`);
+    if (!res.ok) return alert('Error carregant producte');
+    const p = await res.json();
+    document.getElementById('epId').value = p.id;
+    document.getElementById('epTitle').value = p.title || '';
+    document.getElementById('epDesc').value = p.description || '';
+    document.getElementById('epPrice').value = p.price || '';
+    document.getElementById('epCurrency').value = p.price_currency || 'sats';
+
+    const catSel = document.getElementById('epCategory');
+    catSel.innerHTML = '<option value="">Sense especificar</option>' +
+      allCategories.filter(c => c.id).map(c =>
+        `<option value="${c.id}">${c.emoji || ''} ${c.name}</option>`).join('');
+    catSel.value = p.category || '';
+
+    const regSel = document.getElementById('epRegion');
+    regSel.innerHTML = '<option value="">Sense especificar</option>' +
+      allRegions.map(r => `<option value="${r.id}">${r.emoji} ${r.name}</option>`).join('');
+    regSel.value = p.region || '';
+
+    document.getElementById('editProductModal').classList.add('active');
+  } catch(e) {
+    alert('Error: ' + e.message);
+  }
+}
+
+async function submitEditProduct() {
+  const id = document.getElementById('epId').value;
+  const title = document.getElementById('epTitle').value.trim();
+  const description = document.getElementById('epDesc').value.trim();
+  const price = document.getElementById('epPrice').value.trim();
+  const price_currency = document.getElementById('epCurrency').value;
+  const category = document.getElementById('epCategory').value || null;
+  const region = document.getElementById('epRegion').value || null;
+  if (!title || !price) return alert('Títol i preu obligatoris');
+
+  if (!window.nostr?.signEvent) {
+    await requestSigner();
+    if (!window.nostr?.signEvent) return alert('Cal un signer Nostr per editar');
+  }
+
+  const btn = document.getElementById('epSubmitBtn');
+  btn.disabled = true;
+  try {
+    const event = {
+      kind: 30402,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['d', 'mercasats-' + id],
+        ['title', title],
+        ['price', price, price_currency],
+        ['t', 'mercasats'],
+        ...(category ? [['t', category]] : []),
+        ...(region ? [['location', region]] : []),
+      ],
+      content: description || title,
+    };
+    const signed_event = await window.nostr.signEvent(event);
+    if (!signed_event?.sig) { btn.disabled = false; return; }
+
+    const res = await fetch(`${API}/api/products/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ signed_event, title, description, price, price_currency, region, category }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      closeModal('editProductModal');
+      openMyProfile();
+      loadProducts();
+    } else {
+      alert('Error: ' + (data.error || 'desconegut'));
+    }
+  } catch(e) {
+    alert('Error: ' + e.message);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function deleteProduct(productId) {
   if (!confirm('Segur que vols eliminar aquest anunci?')) return;
   if (!window.nostr?.signEvent) {
@@ -1460,7 +1792,8 @@ async function deleteProduct(productId) {
   }
 }
 
-async function submitProductRating(sellerNpub) {
+async function submitProductRating(target) {
+  // target = { npub } or { telegram }
   if (!window._productStars) return alert('Selecciona estrelles');
   if (!window.nostr?.signEvent) {
     await requestSigner();
@@ -1472,21 +1805,29 @@ async function submitProductRating(sellerNpub) {
   if (!userNpub) return alert('Cal connectar amb Nostr primer');
 
   const comment = document.getElementById('productRateComment').value.trim();
+  const tags = [['rating', String(window._productStars)], ['t', 'mercasats-rating']];
+  if (target.npub) tags.unshift(['p', target.npub]);
+  else if (target.telegram) tags.unshift(['r', 'tg:' + target.telegram]);
+
   let signedEvent = null;
   try {
     const ratingEvent = {
       kind: 1, created_at: Math.floor(Date.now() / 1000),
-      tags: [['p', sellerNpub], ['rating', String(window._productStars)], ['t', 'mercasats-rating']],
+      tags,
       content: `Rating: ${window._productStars}/5${comment ? ' - ' + comment : ''}`
     };
     signedEvent = await window.nostr.signEvent(ratingEvent);
   } catch(e) { signedEvent = null; }
 
-  if (!signedEvent && !confirm('No es pot firmar. Enviar igualment?')) return;
+  if (!signedEvent) return alert('No es pot firmar amb el signer actual.');
+
+  const body = { rater_npub: userNpub, stars: window._productStars, comment, signed_event: signedEvent };
+  if (target.npub) body.rated_npub = target.npub;
+  if (target.telegram) body.rated_telegram = target.telegram;
 
   const res = await fetch(`${API}/api/ratings`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ rater_npub: userNpub, rated_npub: sellerNpub, stars: window._productStars, comment, signed_event: signedEvent })
+    body: JSON.stringify(body)
   });
   if (res.ok) {
     alert('Valoració enviada!');
@@ -1496,6 +1837,31 @@ async function submitProductRating(sellerNpub) {
   } else {
     const err = await res.json();
     alert('Error: ' + err.error);
+  }
+}
+
+async function openTelegramProfile(username) {
+  const uname = username.startsWith('@') ? username : '@' + username;
+  document.getElementById('ratingSeller').textContent = uname + ' (Telegram)';
+  const sellerProfile = document.getElementById('ratingSeller').parentElement;
+  const existingPic = sellerProfile.querySelector('.rating-pic');
+  if (existingPic) existingPic.remove();
+  document.getElementById('ratingModal').classList.add('active');
+  try {
+    const res = await fetch(`${API}/api/ratings-tg/${encodeURIComponent(uname)}`);
+    const data = await res.json();
+    document.getElementById('ratingAvg').textContent = '★'.repeat(Math.round(data.average)) + '☆'.repeat(5 - Math.round(data.average));
+    document.getElementById('ratingCount').textContent = `${data.average}/5 (${data.count} valoracions)`;
+    document.getElementById('ratingsList').innerHTML = data.ratings.length ? data.ratings.map(r =>
+      `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--star)">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</span>
+        <span style="color:var(--muted);font-size:12px">${r.rater_npub.substring(0,12)}...</span>
+        ${r.comment ? `<p style="color:var(--muted);font-size:13px;margin-top:4px">${escapeHtml(r.comment)}</p>` : ''}
+        <div style="color:var(--muted);font-size:11px;margin-top:2px">${r.created_at}</div>
+      </div>`
+    ).join('') : '<div style="text-align:center;color:var(--muted);padding:20px">Cap valoració encara</div>';
+  } catch(e) {
+    document.getElementById('ratingsList').innerHTML = '<div style="color:#ef4444;text-align:center;padding:20px">Error carregant valoracions</div>';
   }
 }
 
@@ -1529,8 +1895,8 @@ async function openMyProfile() {
     if (data.products.length) {
       document.getElementById('profileProducts').innerHTML = data.products.map(p =>
         `<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-          <div>
-            <div style="font-weight:600">${escapeHtml(p.title)}</div>
+          <div style="cursor:pointer;flex:1" onclick="openEditProduct(${p.id})" title="Editar">
+            <div style="font-weight:600;color:var(--accent)">${escapeHtml(p.title)} ✏️</div>
             <div style="color:var(--accent);font-size:14px">${escapeHtml(p.price)} ${(p.price_currency || '').toUpperCase() === 'EUR' ? '€' : 'sats'}</div>
             <div style="color:var(--muted);font-size:12px">${p.created_at}</div>
           </div>
@@ -1657,6 +2023,38 @@ function hexToBytes(hex) {
     bytes.push(parseInt(hex.substring(i, i + 2), 16));
   }
   return bytes;
+}
+
+function hexToNpub(hex) {
+  if (!hex || hex.startsWith('npub')) return hex;
+  const bytes = hexToBytes(hex);
+  const words = convertBits(bytes, 8, 5, true);
+  return bech32Encode('npub', words);
+}
+
+function npubToHex(npub) {
+  if (!npub) return npub;
+  if (!npub.startsWith('npub1')) return npub;
+  try {
+    const decoded = bech32Decode(npub);
+    const bytes = convertBits(decoded.words, 5, 8, false);
+    return bytesToHex(bytes);
+  } catch { return npub; }
+}
+
+function bytesToHex(bytes) {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+function bech32Decode(str) {
+  const ALPHABET = 'qpzry9x8gf2tvdw0s3jn54khce6mua7l';
+  const sep = str.lastIndexOf('1');
+  const hrp = str.slice(0, sep);
+  const words = [];
+  for (let i = sep + 1; i < str.length - 6; i++) {
+    words.push(ALPHABET.indexOf(str[i]));
+  }
+  return { hrp, words };
 }
 
 function eventIdToNevent(hexEventId) {
