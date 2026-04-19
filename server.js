@@ -265,6 +265,15 @@ app.post('/api/products', async (req, res) => {
 
   const productId = result.lastInsertRowid;
 
+  // Extract NIP-40 expiration from signed_event tags (if present)
+  try {
+    const expTag = Array.isArray(signed_event?.tags) ? signed_event.tags.find(t => t[0] === 'expiration') : null;
+    const expTs = expTag ? parseInt(expTag[1], 10) : NaN;
+    if (Number.isFinite(expTs) && expTs > Math.floor(Date.now() / 1000)) {
+      db.prepare('UPDATE products SET expires_at = ? WHERE id = ?').run(expTs, productId);
+    }
+  } catch(e) { console.error('[Product] expiration tag parse error:', e.message); }
+
   // Publish to Nostr (use client's signed event if properly signed, otherwise marketplace key)
   console.log(`[Product ${productId}] signed_event.sig:`, signed_event?.sig?.substring(0, 32) + '...');
   console.log(`[Product ${productId}] signed_event.id:`, signed_event?.id?.substring(0, 16) + '...');
@@ -805,6 +814,15 @@ app.put('/api/products/:id', async (req, res) => {
   db.prepare(`UPDATE products SET title = ?, description = ?, price = ?, price_currency = ?, region = ?, category = ?, updated_at = datetime('now') WHERE id = ?`)
     .run(newTitle, newDesc, newPrice, newCurrency, newRegion, newCategory, req.params.id);
 
+  // Update expires_at if a new expiration tag is present in the signed edit event
+  try {
+    const expTag = Array.isArray(signed_event?.tags) ? signed_event.tags.find(t => t[0] === 'expiration') : null;
+    const expTs = expTag ? parseInt(expTag[1], 10) : NaN;
+    if (Number.isFinite(expTs) && expTs > Math.floor(Date.now() / 1000)) {
+      db.prepare('UPDATE products SET expires_at = ? WHERE id = ?').run(expTs, req.params.id);
+    }
+  } catch(e) { console.error('[Edit] expiration tag parse error:', e.message); }
+
   const updated = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
 
   // Republish to Nostr (client's signed event if valid, else marketplace key with same d-tag)
@@ -1082,6 +1100,34 @@ app.get('/api/notifications', (req, res) => {
   res.json({ newProducts, newRatings, removedProducts, soldProducts, reservedProducts });
 });
 
+// --- Expiration sweep (NIP-40): auto-delete products past expires_at ---
+async function sweepExpiredProducts() {
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    const expired = db.prepare(
+      'SELECT * FROM products WHERE active = 1 AND expires_at IS NOT NULL AND expires_at <= ?'
+    ).all(now);
+    if (!expired.length) return;
+    console.log(`[ExpSweep] Found ${expired.length} expired product(s)`);
+    for (const product of expired) {
+      try {
+        const reason = 'Caducat (NIP-40 expiration)';
+        db.prepare("UPDATE products SET active = 0, removal_reason = ?, updated_at = datetime('now') WHERE id = ?")
+          .run(reason, product.id);
+        if (product.telegram_message_id && product.telegram_chat_id) {
+          try { await deleteTelegramMessage(product.telegram_chat_id, product.telegram_message_id); }
+          catch(e) { console.error(`[ExpSweep] TG delete error for ${product.id}:`, e.message); }
+        }
+        if (product.nostr_event_id) {
+          try { await deleteFromNostr(product.nostr_event_id, product.id); }
+          catch(e) { console.error(`[ExpSweep] Nostr delete error for ${product.id}:`, e.message); }
+        }
+        console.log(`[ExpSweep] Product ${product.id} "${product.title}" expired and removed`);
+      } catch(e) { console.error(`[ExpSweep] Product ${product.id} error:`, e.message); }
+    }
+  } catch(e) { console.error('[ExpSweep] sweep error:', e.message); }
+}
+
 // --- CORS preflight for DELETE ---
 app.options('/api/products/:id', (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -1092,6 +1138,9 @@ app.options('/api/products/:id', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Merkasats API on http://0.0.0.0:${PORT}`);
+  // NIP-40 expiration sweep: run once on start, then every hour
+  sweepExpiredProducts();
+  setInterval(sweepExpiredProducts, 60 * 60 * 1000);
   // Start Nostr zap monitor
   startZapMonitor(db, async (product, amountSats, buyerPubkey) => {
     // Notify sale on Telegram group

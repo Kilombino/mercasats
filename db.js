@@ -59,5 +59,6 @@ if (!columns.includes('category')) db.exec(`ALTER TABLE products ADD COLUMN cate
 if (!columns.includes('reserved')) db.exec(`ALTER TABLE products ADD COLUMN reserved INTEGER DEFAULT 0`);
 if (!columns.includes('reserved_by')) db.exec(`ALTER TABLE products ADD COLUMN reserved_by TEXT`);
 if (!columns.includes('reserved_at')) db.exec(`ALTER TABLE products ADD COLUMN reserved_at TEXT`);
+if (!columns.includes('expires_at')) db.exec(`ALTER TABLE products ADD COLUMN expires_at INTEGER`);
 
 module.exports = db;
