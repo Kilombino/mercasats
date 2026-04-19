@@ -1136,8 +1136,8 @@ app.options('/api/products/:id', (req, res) => {
   res.status(204).end();
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Merkasats API on http://0.0.0.0:${PORT}`);
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`Merkasats API on http://127.0.0.1:${PORT}`);
   // NIP-40 expiration sweep: run once on start, then every hour
   sweepExpiredProducts();
   setInterval(sweepExpiredProducts, 60 * 60 * 1000);
