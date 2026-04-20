@@ -80,8 +80,11 @@ async function publishWithVerification(event, maxRetries = 2) {
  * Publish a product listing to Nostr as kind 30402 (classified listing)
  * If a valid signed_event from the client is provided, publish that directly.
  * Otherwise, fall back to signing with the marketplace key.
+ *
+ * opts: { noExpiration?: boolean } — when true, the marketplace-mirror event
+ *       omits the NIP-40 expiration tag (permanent listing).
  */
-async function publishProduct(product, signedEvent) {
+async function publishProduct(product, signedEvent, opts = {}) {
   const { id, title, description, price, price_currency, seller_npub, seller_telegram, photos, category, region } = product;
 
   // If we have a properly signed event from the client, publish it directly
@@ -115,7 +118,7 @@ async function publishProduct(product, signedEvent) {
 
     // Also publish under marketplace key so it appears on Trobades Bitcoiners profile
     try {
-      const marketplaceEvent = buildMarketplaceEvent(product);
+      const marketplaceEvent = buildMarketplaceEvent(product, opts);
       const { successes: mOk } = await publishWithVerification(marketplaceEvent);
       console.log(`[Nostr] Also published under marketplace key to ${mOk} relays`);
     } catch(e) { console.error('[Nostr] Marketplace mirror error:', e.message); }
@@ -124,7 +127,7 @@ async function publishProduct(product, signedEvent) {
   }
 
   // Fallback: sign with marketplace key
-  const event = buildMarketplaceEvent(product);
+  const event = buildMarketplaceEvent(product, opts);
 
   const { results, successes: okCount, attempt } = await publishWithVerification(event);
   console.log(`[Nostr] Published product ${id} (marketplace key) to ${okCount}/${results.length} relays (event: ${event.id})${attempt > 0 ? ` after ${attempt + 1} attempts` : ''}`);
@@ -138,14 +141,13 @@ async function publishProduct(product, signedEvent) {
 /**
  * Build a kind 30402 event signed with the marketplace (Trobades Bitcoiners) key.
  */
-function buildMarketplaceEvent(product) {
+function buildMarketplaceEvent(product, opts = {}) {
   const { id, title, description, price, price_currency, seller_npub, seller_telegram, photos, category, region } = product;
   const currUpper = (price_currency || 'sats').toUpperCase();
   const currSymbol = currUpper === 'EUR' ? '€' : currUpper === 'BTC' ? 'BTC' : 'sats';
   const content = `${title}\n\n${description || ''}\n\n💰 ${price} ${currSymbol}\n👤 ${seller_telegram || ''}\n🔗 ${WEB_URL}`;
 
   const createdAt = Math.floor(Date.now() / 1000);
-  const expirationTs = createdAt + 365 * 24 * 3600; // NIP-40: 1 year default
 
   const tags = [
     ['d', `mercasats-${id}`],
@@ -158,8 +160,15 @@ function buildMarketplaceEvent(product) {
     ['t', 'p2p'],
     ['t', 'bitcoin'],
     ['r', `${WEB_URL}`],
-    ['expiration', String(expirationTs)],
   ];
+
+  if (!opts.noExpiration) {
+    const months = Number.isFinite(opts.expirationMonths) && opts.expirationMonths > 0
+      ? opts.expirationMonths
+      : 12;
+    const expirationTs = createdAt + Math.round(months * 30 * 24 * 3600);
+    tags.push(['expiration', String(expirationTs)]);
+  }
 
   if (category) tags.push(['t', category]);
   if (seller_npub) tags.push(['p', seller_npub, '', 'seller']);
