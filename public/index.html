@@ -209,12 +209,21 @@
       display: flex; flex-direction: column; gap: 10px; margin-top: 12px;
     }
     .comunitat-card .links a.tg-btn {
-      display: flex; align-items: center; justify-content: center; gap: 8px;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
       background: #229ED9; color: #fff; text-decoration: none;
-      padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: 14px;
+      padding: 8px 12px; border-radius: 8px; font-weight: 600; font-size: 14px;
       transition: filter 0.2s;
     }
     .comunitat-card .links a.tg-btn:hover { filter: brightness(1.15); }
+    .comunitat-card .links a.tg-btn .tg-btn-icon {
+      width: 24px; height: 24px; flex-shrink: 0;
+    }
+    .comunitat-card .links a.tg-btn .tg-btn-label {
+      flex: 1; text-align: center;
+    }
+    .comunitat-card .links a.tg-btn .tg-btn-mini {
+      width: 24px; height: 24px; border-radius: 4px; flex-shrink: 0;
+    }
     .comunitat-card .links a.zap-btn {
       display: block; line-height: 0;
     }
@@ -230,6 +239,9 @@
       transition: filter 0.2s; width: 100%; font-family: inherit;
     }
     .comunitat-card .links .npub-btn:hover { filter: brightness(1.15); }
+    .comunitat-card .links .npub-btn-icon {
+      width: 22px; height: 22px; flex-shrink: 0;
+    }
     .comunitat-card .links .npub-btn.copied {
       background: #2e7d32;
     }
@@ -409,13 +421,16 @@
       <p>Únete a la comunitat de Trobades Bitcoiners i descarrega't l'app de Merca-sats des de Zapstore.</p>
       <div class="links">
         <a class="tg-btn" href="https://t.me/trobadesbitcoiners" target="_blank" rel="noopener">
-          💬 Trobades Bitcoiners (Telegram)
+          <img src="/telegram-logo.svg" alt="" class="tg-btn-icon">
+          <span class="tg-btn-label">Trobades Bitcoiners</span>
+          <img src="/trobades-logo.jpg" alt="" class="tg-btn-mini">
         </a>
         <a class="zap-btn" href="https://zapstore.dev" target="_blank" rel="noopener" title="Descarrega Merca-sats des de Zapstore">
           <img src="/zapstore-badge.png" alt="Get it on Zapstore">
         </a>
         <button class="npub-btn" onclick="copyNpub()" title="Copiar npub de Trobades Bitcoiners">
-          🟣 npub (Nostr)
+          <img src="/amethyst-logo.svg" alt="" class="npub-btn-icon">
+          <span>Copiar npub</span>
         </button>
       </div>
     </div>
@@ -482,7 +497,7 @@
       <label>Caducitat (mesos) <span style="color:var(--text-muted);font-weight:normal;font-size:0.85em">— l'anunci s'eliminarà dels relés Nostr al passar aquest termini</span></label>
       <input type="number" id="npExpMonths" value="12" min="1" max="60">
       <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:normal">
-        <input type="checkbox" id="npNoExp" onchange="document.getElementById('npExpMonths').disabled = this.checked">
+        <input type="checkbox" id="npNoExp" onchange="(() => { const i = document.getElementById('npExpMonths'); i.disabled = this.checked; if (this.checked) { i.dataset.prev = i.value; i.value = ''; } else if (i.dataset.prev) { i.value = i.dataset.prev; } })()">
         <span>Sense caducitat (permanent)</span>
       </label>
     </div>
@@ -536,15 +551,22 @@
       <div id="qrContainer" style="background:#fff;display:inline-block;padding:8px;border-radius:12px;margin-bottom:12px">
         <canvas id="qrCanvas"></canvas>
       </div>
-      <div id="connectStatus" style="margin-bottom:12px">
-        <a id="amberLink" href="#" style="display:inline-flex;align-items:center;gap:8px;padding:10px 20px;background:#F1A026;color:#000;font-weight:600;border-radius:8px;text-decoration:none;margin-bottom:8px">🟡 Login with Amber</a>
+      <div id="connectStatus" style="margin-bottom:12px;display:flex;flex-direction:column;gap:8px;align-items:stretch">
+        <a id="amberLink" href="#" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 18px;background:#F1A026;color:#000;font-weight:600;border-radius:8px;text-decoration:none">
+          <span style="font-size:1.2em">🟡</span>
+          <span>Login with Amber</span>
+        </a>
+        <a id="primalLink" href="#" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 18px;background:#CA077C;color:#fff;font-weight:600;border-radius:8px;text-decoration:none">
+          <span style="font-size:1.2em">🟣</span>
+          <span>Login with Primal</span>
+        </a>
       </div>
       <div id="connectWaiting" style="display:none;color:var(--muted);font-size:13px">
         <div style="display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 1s linear infinite;margin-right:8px;vertical-align:middle"></div>
-        Paciencia, espera unos segundos...
+        Esperant connexió...
       </div>
       <button onclick="navigator.clipboard.writeText(window._connStr);this.textContent='✅ Copied!';setTimeout(()=>{this.textContent='📋 Copy connection string'},2000)" id="copyBtn" style="display:none;margin-top:8px" class="btn btn-outline">📋 Copy connection string</button>
-      <p style="color:var(--muted);font-size:12px;margin-top:12px">Scan with Amber, Primal, or any NIP-46 signer</p>
+      <p style="color:var(--muted);font-size:12px;margin-top:12px">Escanea amb Amber, Primal o qualsevol signer NIP-46</p>
     </div>
 
     <!-- Error/Success -->
@@ -620,7 +642,7 @@
       <label>Caducitat (mesos) <span style="color:var(--text-muted);font-weight:normal;font-size:0.85em">— reinicia des d'avui</span></label>
       <input type="number" id="epExpMonths" value="12" min="1" max="60">
       <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:normal">
-        <input type="checkbox" id="epNoExp" onchange="document.getElementById('epExpMonths').disabled = this.checked">
+        <input type="checkbox" id="epNoExp" onchange="(() => { const i = document.getElementById('epExpMonths'); i.disabled = this.checked; if (this.checked) { i.dataset.prev = i.value; i.value = ''; } else if (i.dataset.prev) { i.value = i.dataset.prev; } })()">
         <span>Sense caducitat (permanent)</span>
       </label>
     </div>
@@ -664,10 +686,11 @@ const TROBADES_NPUB = 'npub1qqqqqq58mqqqpdppmg00j4t2j6tgnswzr4z4s2mpsnx9zcnej9tq
 function copyNpub() {
   navigator.clipboard.writeText(TROBADES_NPUB).then(() => {
     const btn = document.querySelector('.npub-btn');
-    const orig = btn.textContent;
-    btn.textContent = '✅ Copiat!';
+    const label = btn.querySelector('span');
+    const orig = label.textContent;
+    label.textContent = '✅ Copiat!';
     btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = orig; btn.classList.remove('copied'); }, 2000);
+    setTimeout(() => { label.textContent = orig; btn.classList.remove('copied'); }, 2000);
   });
 }
 
@@ -680,6 +703,9 @@ let allRegions = [];
 
 // --- Init ---
 async function init() {
+  // Restore login UI from localStorage before anything else so the page
+  // opens with the user already showing as logged in.
+  try { await restoreSession(); } catch(e) { console.warn('restoreSession:', e); }
   await Promise.all([loadCategories(), loadRegions(), loadUsers()]);
   await loadProducts();
 }
@@ -912,11 +938,57 @@ let canSign = false;
 const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
 
 let nip46client = null;
+let loginMethod = null; // 'extension' | 'nip46' | 'amber'
+
+const SESSION_KEY = 'mercasats_session_v1';
+
+function saveSession() {
+  if (!userNpub || !loginMethod) return;
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({
+      npub: userNpub,
+      method: loginMethod,
+      displayName: window._myDisplayName || null,
+      picture: window._myPicture || null,
+      savedAt: Date.now()
+    }));
+  } catch(e) { console.warn('saveSession failed:', e); }
+}
+
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch(e) {}
+}
+
+function readSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch(e) { return null; }
+}
+
+async function restoreSession() {
+  const s = readSession();
+  if (!s || !s.npub) return;
+  userNpub = s.npub;
+  loginMethod = s.method || null;
+  window._myDisplayName = s.displayName || null;
+  window._myPicture = s.picture || null;
+  canSign = !!(window.nostr?.signEvent);
+  updateLoginUI();
+  // Rebind window.nostr for extension users (it's already injected by the extension)
+  if (s.method === 'extension' && window.nostr?.getPublicKey) {
+    canSign = true;
+  }
+  // Profile already shows; refresh users list so own name appears
+  try { loadUsers(); } catch(e) {}
+}
 
 async function handleLogin() {
   if (userNpub) {
     // Logout — clear everything
-    userNpub = null; canSign = false;
+    userNpub = null; canSign = false; loginMethod = null;
+    clearSession();
     if (nip46client) { try { nip46client.abort(); } catch(e) {} nip46client = null; }
     window.nostr = undefined;
     window._myDisplayName = null;
@@ -950,6 +1022,7 @@ async function openLoginModal() {
       if (pubkey) {
         canSign = true;
         userNpub = pubkey;
+        loginMethod = 'extension';
         await completeLogin(pubkey);
         return; // Skip modal entirely
       }
@@ -1027,6 +1100,7 @@ async function extLogin() {
       return;
     }
     canSign = true;
+    loginMethod = 'extension';
     document.getElementById('loginSuccess').style.display = 'block';
     closeLoginModal();
     await completeLogin(pubkey);
@@ -1060,6 +1134,16 @@ async function initNostrConnect() {
     window.location.href = connStr;
   };
 
+  // Primal link — Primal also handles the nostrconnect:// URI
+  const primalLink = document.getElementById('primalLink');
+  if (primalLink) {
+    primalLink.href = connStr;
+    primalLink.onclick = (e) => {
+      e.preventDefault();
+      window.location.href = connStr;
+    };
+  }
+
   // Copy button
   document.getElementById('copyBtn').style.display = 'inline-block';
   window._connStr = connStr;
@@ -1070,6 +1154,7 @@ async function initNostrConnect() {
   try {
     const remotePubkey = await nip46client.waitForConnectionWithVisibility(120000);
     canSign = true;
+    loginMethod = 'nip46';
 
     // Override window.nostr with NIP-46 signer
     window.nostr = {
@@ -1146,6 +1231,7 @@ function checkAmberCallback() {
   if (pending === 'login' && result) {
     sessionStorage.removeItem('amber_pending');
     window.history.replaceState({}, '', '/');
+    loginMethod = 'amber';
     completeLogin(result);
   } else if (pending === 'sign' && result) {
     sessionStorage.removeItem('amber_pending');
@@ -1164,6 +1250,9 @@ async function completeLogin(pubkeyHex) {
   userNpub = pubkeyHex;
   canSign = !!(window.nostr?.signEvent);
 
+  // Persist session so the user stays logged in across page reloads
+  saveSession();
+
   // Update UI immediately so the user sees the login
   updateLoginUI();
 
@@ -1180,6 +1269,9 @@ async function completeLogin(pubkeyHex) {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ npub: pubkeyHex, display_name: displayName, picture })
     });
+
+    // Save again now that we have name+picture
+    saveSession();
 
     updateLoginUI();
     loadUsers();
@@ -1729,8 +1821,13 @@ async function openEditProduct(productId) {
 
     const noExpChk = document.getElementById('epNoExp');
     if (noExpChk) {
+      const expInput = document.getElementById('epExpMonths');
       noExpChk.checked = !p.expires_at;
-      document.getElementById('epExpMonths').disabled = noExpChk.checked;
+      expInput.disabled = noExpChk.checked;
+      if (noExpChk.checked) {
+        expInput.dataset.prev = '12';
+        expInput.value = '';
+      }
     }
 
     document.getElementById('editProductModal').classList.add('active');
