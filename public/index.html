@@ -481,6 +481,10 @@
     <div class="form-group">
       <label>Caducitat (mesos) <span style="color:var(--text-muted);font-weight:normal;font-size:0.85em">— l'anunci s'eliminarà dels relés Nostr al passar aquest termini</span></label>
       <input type="number" id="npExpMonths" value="12" min="1" max="60">
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:normal">
+        <input type="checkbox" id="npNoExp" onchange="document.getElementById('npExpMonths').disabled = this.checked">
+        <span>Sense caducitat (permanent)</span>
+      </label>
     </div>
     <div class="pow-status" id="powStatus"></div>
     <div style="display:flex;gap:10px;margin-top:20px">
@@ -615,6 +619,10 @@
     <div class="form-group">
       <label>Caducitat (mesos) <span style="color:var(--text-muted);font-weight:normal;font-size:0.85em">— reinicia des d'avui</span></label>
       <input type="number" id="epExpMonths" value="12" min="1" max="60">
+      <label style="display:flex;align-items:center;gap:8px;margin-top:8px;font-weight:normal">
+        <input type="checkbox" id="epNoExp" onchange="document.getElementById('epExpMonths').disabled = this.checked">
+        <span>Sense caducitat (permanent)</span>
+      </label>
     </div>
     <div style="display:flex;gap:10px;margin-top:20px">
       <button class="btn btn-accent" onclick="submitEditProduct()" id="epSubmitBtn">Guardar</button>
@@ -1266,6 +1274,7 @@ async function submitProduct() {
     const region = document.getElementById('npRegion').value || null;
     const seller_telegram = document.getElementById('npTelegram').value.trim() || null;
 
+    const noExp = document.getElementById('npNoExp')?.checked;
     const expMonths = Math.max(1, Math.min(60, parseInt(document.getElementById('npExpMonths').value, 10) || 12));
     const createdAt = Math.floor(Date.now() / 1000);
     const expirationTs = createdAt + expMonths * 30 * 24 * 3600;
@@ -1281,7 +1290,7 @@ async function submitProduct() {
         ...(category ? [['t', category]] : []),
         ...(region ? [['location', region]] : []),
         ...(photos ? [['image', photos]] : []),
-        ['expiration', String(expirationTs)],
+        ...(noExp ? [] : [['expiration', String(expirationTs)]]),
       ],
       content: desc || title
     };
@@ -1718,6 +1727,12 @@ async function openEditProduct(productId) {
       allRegions.map(r => `<option value="${r.id}">${r.emoji} ${r.name}</option>`).join('');
     regSel.value = p.region || '';
 
+    const noExpChk = document.getElementById('epNoExp');
+    if (noExpChk) {
+      noExpChk.checked = !p.expires_at;
+      document.getElementById('epExpMonths').disabled = noExpChk.checked;
+    }
+
     document.getElementById('editProductModal').classList.add('active');
   } catch(e) {
     alert('Error: ' + e.message);
@@ -1742,6 +1757,7 @@ async function submitEditProduct() {
   const btn = document.getElementById('epSubmitBtn');
   btn.disabled = true;
   try {
+    const noExp = document.getElementById('epNoExp')?.checked;
     const expMonths = Math.max(1, Math.min(60, parseInt(document.getElementById('epExpMonths').value, 10) || 12));
     const createdAt = Math.floor(Date.now() / 1000);
     const expirationTs = createdAt + expMonths * 30 * 24 * 3600;
@@ -1755,7 +1771,7 @@ async function submitEditProduct() {
         ['t', 'mercasats'],
         ...(category ? [['t', category]] : []),
         ...(region ? [['location', region]] : []),
-        ['expiration', String(expirationTs)],
+        ...(noExp ? [] : [['expiration', String(expirationTs)]]),
       ],
       content: description || title,
     };

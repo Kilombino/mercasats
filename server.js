@@ -36,6 +36,7 @@ function hexToNpub(hex) {
 const FORCED_SELLER_REGIONS = {
   kilombino: 'baixllobregat',
   eznomada: 'galicia',
+  bebop2077: 'penedes',
 };
 
 function forcedRegionForSeller(sellerTelegram) {
@@ -265,14 +266,13 @@ app.post('/api/products', async (req, res) => {
 
   const productId = result.lastInsertRowid;
 
-  // Extract NIP-40 expiration from signed_event tags (if present)
-  try {
-    const expTag = Array.isArray(signed_event?.tags) ? signed_event.tags.find(t => t[0] === 'expiration') : null;
-    const expTs = expTag ? parseInt(expTag[1], 10) : NaN;
-    if (Number.isFinite(expTs) && expTs > Math.floor(Date.now() / 1000)) {
-      db.prepare('UPDATE products SET expires_at = ? WHERE id = ?').run(expTs, productId);
-    }
-  } catch(e) { console.error('[Product] expiration tag parse error:', e.message); }
+  // NIP-40 expiration: honour the signed_event's tag (or lack thereof)
+  const expTag = Array.isArray(signed_event?.tags) ? signed_event.tags.find(t => t[0] === 'expiration') : null;
+  const expTs = expTag ? parseInt(expTag[1], 10) : NaN;
+  const noExpiration = !expTag; // no tag = permanent
+  if (Number.isFinite(expTs) && expTs > Math.floor(Date.now() / 1000)) {
+    db.prepare('UPDATE products SET expires_at = ? WHERE id = ?').run(expTs, productId);
+  }
 
   // Publish to Nostr (use client's signed event if properly signed, otherwise marketplace key)
   console.log(`[Product ${productId}] signed_event.sig:`, signed_event?.sig?.substring(0, 32) + '...');
@@ -285,7 +285,7 @@ app.post('/api/products', async (req, res) => {
       id: productId, title, description, price, price_currency,
       seller_npub: seller_npub || null, seller_telegram: seller_telegram || null,
       photos: parsedPhotos, category, region
-    }, signed_event);
+    }, signed_event, { noExpiration });
     if (nostrEventId) {
       db.prepare('UPDATE products SET nostr_event_id = ? WHERE id = ?').run(nostrEventId, productId);
     }
@@ -597,13 +597,17 @@ app.post('/api/internal/product', async (req, res) => {
 
   const productId = result.lastInsertRowid;
 
+  // Sense caducitat from Telegram: detect #sensecaducitat or #nocaduca in title/description
+  const combined = `${title || ''} ${description || ''}`.toLowerCase();
+  const noExpiration = /#(?:sensecaducitat|nocaduca|nocaducidad|noexpira)\b/.test(combined);
+
   // Publish to Nostr
   try {
     const nostrEventId = await publishProduct({
       id: productId, title, description, price, price_currency: price_currency || 'sats',
       seller_npub: seller_npub || null, seller_telegram: seller_telegram || null,
       photos: photos || [], category, region
-    });
+    }, null, { noExpiration });
     if (nostrEventId) {
       db.prepare('UPDATE products SET nostr_event_id = ? WHERE id = ?').run(nostrEventId, productId);
     }
@@ -814,14 +818,15 @@ app.put('/api/products/:id', async (req, res) => {
   db.prepare(`UPDATE products SET title = ?, description = ?, price = ?, price_currency = ?, region = ?, category = ?, updated_at = datetime('now') WHERE id = ?`)
     .run(newTitle, newDesc, newPrice, newCurrency, newRegion, newCategory, req.params.id);
 
-  // Update expires_at if a new expiration tag is present in the signed edit event
-  try {
-    const expTag = Array.isArray(signed_event?.tags) ? signed_event.tags.find(t => t[0] === 'expiration') : null;
-    const expTs = expTag ? parseInt(expTag[1], 10) : NaN;
-    if (Number.isFinite(expTs) && expTs > Math.floor(Date.now() / 1000)) {
-      db.prepare('UPDATE products SET expires_at = ? WHERE id = ?').run(expTs, req.params.id);
-    }
-  } catch(e) { console.error('[Edit] expiration tag parse error:', e.message); }
+  // Update expires_at based on the signed edit event's expiration tag (or absence thereof)
+  const editExpTag = Array.isArray(signed_event?.tags) ? signed_event.tags.find(t => t[0] === 'expiration') : null;
+  const editExpTs = editExpTag ? parseInt(editExpTag[1], 10) : NaN;
+  const editNoExpiration = !editExpTag;
+  if (editNoExpiration) {
+    db.prepare('UPDATE products SET expires_at = NULL WHERE id = ?').run(req.params.id);
+  } else if (Number.isFinite(editExpTs) && editExpTs > Math.floor(Date.now() / 1000)) {
+    db.prepare('UPDATE products SET expires_at = ? WHERE id = ?').run(editExpTs, req.params.id);
+  }
 
   const updated = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
 
@@ -833,7 +838,7 @@ app.put('/api/products/:id', async (req, res) => {
       price: updated.price, price_currency: updated.price_currency,
       seller_npub: updated.seller_npub, seller_telegram: updated.seller_telegram,
       photos: parsedPhotos, category: updated.category, region: updated.region,
-    }, signed_event);
+    }, signed_event, { noExpiration: editNoExpiration });
     if (nostrEventId) {
       db.prepare('UPDATE products SET nostr_event_id = ? WHERE id = ?').run(nostrEventId, updated.id);
     }
