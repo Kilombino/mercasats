@@ -347,6 +347,18 @@ async function poll() {
         if (fromId) {
           recentProducts.set(fromId, { productId: result.id, timestamp: Date.now() });
         }
+        // Probe copyability ONCE — if the sender has forwarding disabled, the
+        // deletion checker can never distinguish "deleted" from "unforwardable",
+        // so mark this product as uncheckable permanently.
+        try {
+          const probe = await probeMessage(product.telegram_chat_id, product.telegram_message_id);
+          if (probe !== 'exists') {
+            console.log(`[Scraper] Product ${result.id} msg ${product.telegram_message_id} not copyable (${probe}) — marking can_check_deletion=0`);
+            db.prepare('UPDATE products SET can_check_deletion = 0 WHERE id = ?').run(result.id);
+          }
+        } catch (e) {
+          console.error(`[Scraper] Probe failed for product ${result.id}:`, e.message);
+        }
       } catch (e) {
         console.error(`[Scraper] Failed to post product:`, e.message);
       }
@@ -363,12 +375,16 @@ async function poll() {
 // --- Deletion checker: detect messages deleted from Telegram ---
 const CHECK_DELETED_INTERVAL = 10 * 60_000; // 10 minutes
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '628227864'; // Kilombino DM — silent copy target
-const db = require('better-sqlite3')(path.join(__dirname, 'merkasats.db'), { readonly: true });
+// DB opened read-write: we need to mark can_check_deletion for newly-scraped products
+const db = require('better-sqlite3')(path.join(__dirname, 'merkasats.db'));
 
-async function checkMessageExists(chatId, messageId) {
-  // Copy the message to a private admin chat (Kilombino's DM with the bot) and
-  // immediately delete the copy. Must NOT copy to the same group chat — that
-  // causes visible spam. Private DM with disable_notification is silent.
+// Telegram Bot API cannot distinguish a deleted message from one whose sender
+// has forwarding/copying disabled — both return "message to copy not found".
+// So: test copyability ONCE right after scraping. If it fails then, the user
+// has forwarding disabled permanently → mark can_check_deletion=0 so the
+// deletion checker skips it forever (we accept we can't auto-delete that one).
+// Result: 'exists' | 'missing' | 'uncopyable' (private/protected content — exists but can't copy)
+async function probeMessage(chatId, messageId) {
   try {
     const result = await tgApi('copyMessage', {
       chat_id: ADMIN_CHAT_ID,
@@ -382,17 +398,34 @@ async function checkMessageExists(chatId, messageId) {
         message_id: result.message_id
       }).catch(() => {});
     }
-    return true;
+    return 'exists';
   } catch (e) {
-    if (e.message && (e.message.includes('message to copy not found') ||
-        e.message.includes('message not found'))) {
-      return false;
+    const msg = e.message || '';
+    if (msg.includes('message to copy not found') || msg.includes('message not found')) {
+      return 'missing';
     }
-    if (e.message && e.message.includes("message can't be copied")) {
-      return true;
+    if (msg.includes("can't be copied")) {
+      return 'uncopyable';
     }
-    console.error(`[Checker] Error checking msg ${messageId}:`, e.message);
-    return true;
+    console.error(`[Checker] Probe error for msg ${messageId}:`, msg);
+    return 'uncopyable'; // fail-safe: treat unknown errors as uncopyable (don't delete)
+  }
+}
+
+// Notify Kilombino when a product is auto-deleted — so false positives
+// surface quickly and can be restored.
+async function notifyDeletion(product, reason) {
+  try {
+    await tgApi('sendMessage', {
+      chat_id: ADMIN_CHAT_ID,
+      text: `🗑️ Auto-borrado: producto #${product.id} "${product.title}"\n` +
+            `Msg ID: ${product.telegram_message_id}\n` +
+            `Motivo: ${reason}\n\n` +
+            `Si es un falso positivo, avísame y lo restauramos.`,
+      disable_notification: true
+    });
+  } catch (e) {
+    console.error('[Checker] Failed to notify deletion:', e.message);
   }
 }
 
@@ -418,28 +451,49 @@ function deleteProduct(productId) {
   });
 }
 
+// Consecutive-miss counter: require 2 consecutive "missing" results before deleting,
+// to guard against transient network issues.
+const missCounts = new Map(); // productId -> consecutive miss count
+const REQUIRED_MISSES = 2;
+
 async function checkDeleted() {
   console.log('[Checker] Checking for deleted Telegram messages...');
-  // Re-read DB each time (readonly connection)
-  // Only check products that came from the telegram scraper (source='telegram')
-  // Products published via web have bot announcement IDs which are different
+  // Only check products that (a) came from telegram scraper, (b) still active,
+  // (c) are known to be copyable (can_check_deletion=1 — set at scrape time).
   const products = db.prepare(
-    "SELECT id, title, telegram_message_id, telegram_chat_id FROM products WHERE active = 1 AND source = 'telegram' AND telegram_message_id IS NOT NULL AND telegram_message_id != '' AND telegram_chat_id IS NOT NULL"
+    "SELECT id, title, telegram_message_id, telegram_chat_id FROM products " +
+    "WHERE active = 1 AND source = 'telegram' AND telegram_message_id IS NOT NULL " +
+    "AND telegram_message_id != '' AND telegram_chat_id IS NOT NULL " +
+    "AND can_check_deletion = 1"
   ).all();
 
   let deleted = 0;
   for (const p of products) {
-    const exists = await checkMessageExists(p.telegram_chat_id, p.telegram_message_id);
-    if (!exists) {
-      console.log(`[Checker] Message ${p.telegram_message_id} deleted — removing product ${p.id} "${p.title}"`);
-      try {
-        await deleteProduct(p.id);
-        deleted++;
-      } catch (e) {
-        console.error(`[Checker] Failed to delete product ${p.id}:`, e.message);
+    const result = await probeMessage(p.telegram_chat_id, p.telegram_message_id);
+    if (result === 'missing') {
+      const count = (missCounts.get(p.id) || 0) + 1;
+      missCounts.set(p.id, count);
+      console.log(`[Checker] Msg ${p.telegram_message_id} (product ${p.id}) missing — consecutive misses: ${count}/${REQUIRED_MISSES}`);
+      if (count >= REQUIRED_MISSES) {
+        console.log(`[Checker] Threshold reached — deleting product ${p.id} "${p.title}"`);
+        try {
+          await deleteProduct(p.id);
+          await notifyDeletion(p, `mensaje de Telegram no accesible en ${REQUIRED_MISSES} chequeos consecutivos`);
+          missCounts.delete(p.id);
+          deleted++;
+        } catch (e) {
+          console.error(`[Checker] Failed to delete product ${p.id}:`, e.message);
+        }
       }
+    } else if (result === 'uncopyable') {
+      // Unexpected — product was marked checkable but now isn't. Flip the flag.
+      console.log(`[Checker] Product ${p.id} msg ${p.telegram_message_id} became uncopyable — marking can_check_deletion=0`);
+      db.prepare('UPDATE products SET can_check_deletion = 0 WHERE id = ?').run(p.id);
+      missCounts.delete(p.id);
+    } else {
+      // exists — reset miss counter
+      missCounts.delete(p.id);
     }
-    // Rate limit: small delay between checks
     await new Promise(r => setTimeout(r, 1000));
   }
   console.log(`[Checker] Done. Checked ${products.length} products, removed ${deleted}.`);
