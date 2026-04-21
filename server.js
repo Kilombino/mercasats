@@ -103,58 +103,82 @@ function tgEscape(text) {
   return String(text || '').replace(/([_*\[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
 
-function sendTelegramAnnounce(text, photoUrl) {
-  return new Promise((resolve) => {
-    if (!process.env.TG_BOT_TOKEN) { resolve(null); return; }
-    const https = require('https');
-    const usePhoto = !!photoUrl;
-    const body = usePhoto
-      ? { chat_id: '-1002457902120', message_thread_id: 2106, photo: photoUrl, caption: text, parse_mode: 'MarkdownV2' }
-      : { chat_id: '-1002457902120', message_thread_id: 2106, text, parse_mode: 'MarkdownV2' };
-    const postData = JSON.stringify(body);
-    const endpoint = usePhoto ? 'sendPhoto' : 'sendMessage';
-    const req = https.request({
-      hostname: 'api.telegram.org',
-      path: `/bot${process.env.TG_BOT_TOKEN}/${endpoint}`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
-    }, (res) => {
-      let data = '';
-      res.on('data', d => data += d);
-      res.on('end', () => {
-        try {
-          const resp = JSON.parse(data);
-          resolve(resp.ok ? resp.result.message_id : null);
-        } catch { resolve(null); }
-      });
+const TG_CHAT_ID = '-1002457902120';
+const TG_THREAD_ID = 2106;
+const TG_CAPTION_LIMIT = 1024;
+
+// Post an ad to the channel. If `text` (caption+photo) fits in 1024 chars,
+// sends a single photo message. If it overflows, sends a short summary caption
+// on the photo and a follow-up text reply with the full body. Returns
+// { messageId, longMessageId } — longMessageId is null when a single message
+// was enough.
+async function sendTelegramAnnounce(text, photoUrl, summary) {
+  if (!process.env.TG_BOT_TOKEN) return { messageId: null, longMessageId: null };
+
+  const usePhoto = !!photoUrl;
+  const fitsInOne = text.length <= TG_CAPTION_LIMIT;
+
+  if (!usePhoto) {
+    const r = await tgApi('sendMessage', {
+      chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, text, parse_mode: 'MarkdownV2',
     });
-    req.on('error', (e) => { console.error('TG announce error:', e.message); resolve(null); });
-    req.write(postData);
-    req.end();
+    return { messageId: r.ok ? r.result.message_id : null, longMessageId: null };
+  }
+
+  if (fitsInOne) {
+    const r = await tgApi('sendPhoto', {
+      chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, photo: photoUrl, caption: text, parse_mode: 'MarkdownV2',
+    });
+    return { messageId: r.ok ? r.result.message_id : null, longMessageId: null };
+  }
+
+  // Overflow: short photo caption + reply with full body
+  const photoResp = await tgApi('sendPhoto', {
+    chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, photo: photoUrl,
+    caption: (summary || text.slice(0, TG_CAPTION_LIMIT)), parse_mode: 'MarkdownV2',
+  });
+  if (!photoResp.ok) return { messageId: null, longMessageId: null };
+  const photoId = photoResp.result.message_id;
+  const textResp = await tgApi('sendMessage', {
+    chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, text, parse_mode: 'MarkdownV2',
+    reply_parameters: { message_id: photoId },
+    link_preview_options: { is_disabled: true },
+  });
+  return { messageId: photoId, longMessageId: textResp.ok ? textResp.result.message_id : null };
+}
+
+// Call a Telegram bot-API method with automatic legacy-token fallback.
+// Old channel messages were posted by @ClawilomBot (TG_BOT_TOKEN_LEGACY) and can
+// only be edited/deleted by that bot. New posts use @MercasatsBot (TG_BOT_TOKEN).
+function tgApi(method, body, { tokensToTry } = {}) {
+  const tokens = tokensToTry || [process.env.TG_BOT_TOKEN, process.env.TG_BOT_TOKEN_LEGACY].filter(Boolean);
+  return new Promise(async (resolve) => {
+    const https = require('https');
+    const postData = JSON.stringify(body);
+    for (const token of tokens) {
+      const resp = await new Promise((rs) => {
+        const req = https.request({
+          hostname: 'api.telegram.org',
+          path: `/bot${token}/${method}`,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
+        }, (res) => {
+          let data = '';
+          res.on('data', d => data += d);
+          res.on('end', () => { try { rs(JSON.parse(data)); } catch { rs({ ok:false }); } });
+        });
+        req.on('error', () => rs({ ok:false }));
+        req.write(postData); req.end();
+      });
+      if (resp && resp.ok) return resolve(resp);
+    }
+    resolve({ ok:false });
   });
 }
 
 function deleteTelegramMessage(chatId, messageId) {
-  return new Promise((resolve) => {
-    if (!process.env.TG_BOT_TOKEN || !chatId || !messageId) { resolve(false); return; }
-    const https = require('https');
-    const postData = JSON.stringify({ chat_id: chatId, message_id: Number(messageId) });
-    const req = https.request({
-      hostname: 'api.telegram.org',
-      path: `/bot${process.env.TG_BOT_TOKEN}/deleteMessage`,
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) }
-    }, (res) => {
-      let data = '';
-      res.on('data', d => data += d);
-      res.on('end', () => {
-        try { resolve(JSON.parse(data).ok); } catch { resolve(false); }
-      });
-    });
-    req.on('error', () => resolve(false));
-    req.write(postData);
-    req.end();
-  });
+  if (!chatId || !messageId) return Promise.resolve(false);
+  return tgApi('deleteMessage', { chat_id: chatId, message_id: Number(messageId) }).then(r => !!r.ok);
 }
 
 // --- Anti-spam: simple PoW challenge ---
@@ -252,16 +276,24 @@ app.post('/api/products', async (req, res) => {
     return res.status(403).json({ error: 'Invalid PoW. Get a new challenge.' });
   }
 
+  // Extract d-tag from the client-signed event so we can reference this listing
+  // later via naddr (kind+author+d-tag). NIP-99 requires kind 30402 to carry a
+  // d-tag for replaceable semantics.
+  const dTagFromSig = Array.isArray(signed_event?.tags)
+    ? (signed_event.tags.find(t => t[0] === 'd')?.[1] || null)
+    : null;
+
   const stmt = db.prepare(`
-    INSERT INTO products (title, description, price, price_currency, region, category, photos, seller_telegram, seller_npub, source)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual')
+    INSERT INTO products (title, description, price, price_currency, region, category, photos, seller_telegram, seller_npub, source, nostr_d_tag)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?)
   `);
 
   const finalRegion = forcedRegionForSeller(seller_telegram) || region || null;
   const result = stmt.run(
     title, description || '', price, price_currency || 'sats',
     finalRegion, category || null, JSON.stringify(photos || []),
-    seller_telegram || null, seller_npub || null
+    seller_telegram || null, seller_npub || null,
+    dTagFromSig
   );
 
   const productId = result.lastInsertRowid;
@@ -299,26 +331,31 @@ app.post('/api/products', async (req, res) => {
     const priceText = (price && !isNaN(Number(price))) ? price + (price_currency === 'EUR' ? '€' : ' sats') : (price || 'A consultar');
     const tgUser = seller_telegram ? (seller_telegram.startsWith('@') ? seller_telegram : '@' + seller_telegram) : null;
     const contact = tgUser || (seller_npub ? seller_npub.substring(0, 16) + '...' : '');
-    const desc = (description || '').substring(0, 200);
-    const photoUrl = (photos && photos.length > 0) ? (photos[0].startsWith('http') ? photos[0] : `https://mercasats.kilombino.com${photos[0]}`) : null;
+    // sendTelegramAnnounce handles the caption/text-message split automatically:
+    // if the full body fits in 1024 chars, single photo+caption; otherwise the
+    // photo gets a short summary caption and the full body goes in a text reply.
+    const hasPhoto = photos && photos.length > 0;
+    const desc = (description || '').substring(0, 3500);
+    const photoUrl = hasPhoto ? (photos[0].startsWith('http') ? photos[0] : `https://mercasats.kilombino.com${photos[0]}`) : null;
     const regionObj = region ? REGIONS.find(r => r.id === region) : null;
     const regionName = regionObj?.name || region || '';
     const regionEmoji = regionObj?.emoji || '';
-    // Determine VENDE or COMPRA from title
     const isCompra = /compro|compra|busco|\[compra\]/i.test(title);
     const tipoText = isCompra ? 'COMPRA' : 'VENDE';
-    const text = `🛒 *\\#${tipoText}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}\n📝 *\\#DESCRIPCION* ${tgEscape(title)}\n${tgEscape(desc)}\n👤 ${tgUser ? tgUser : tgEscape(contact)}\n\n🔗 [mercasats\\.kilombino\\.com](https://mercasats.kilombino.com)`;
+    const productUrl = `https://mercasats.kilombino.com/?p=${productId}`;
+    const productUrlLabel = `mercasats\\.kilombino\\.com/?p\\=${productId}`;
+    const text = `🛒 *\\#${tipoText}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}\n📝 *\\#DESCRIPCION* ${tgEscape(title)}\n${tgEscape(desc)}\n👤 ${tgUser ? tgUser : tgEscape(contact)}\n\n🔗 [${productUrlLabel}](${productUrl})`;
+    const summary = `🛒 *\\#${tipoText}* \\| 💰${tgEscape(priceText)} \\| ${regionEmoji}${tgEscape(regionName || 'Sense zona')}\n📝 *${tgEscape(title)}*\n\n👇 Descripció completa abaix\n🔗 [${productUrlLabel}](${productUrl})`;
 
-    let tgMsgId = await sendTelegramAnnounce(text, photoUrl);
-    // Retry once if failed
-    if (!tgMsgId) {
+    let res1 = await sendTelegramAnnounce(text, photoUrl, summary);
+    if (!res1.messageId) {
       console.log('[TG] First announce attempt failed, retrying in 3s...');
       await new Promise(r => setTimeout(r, 3000));
-      tgMsgId = await sendTelegramAnnounce(text, photoUrl);
+      res1 = await sendTelegramAnnounce(text, photoUrl, summary);
     }
-    if (tgMsgId) {
-      db.prepare('UPDATE products SET telegram_message_id = ?, telegram_chat_id = ? WHERE id = ?')
-        .run(String(tgMsgId), '-1002457902120', productId);
+    if (res1.messageId) {
+      db.prepare('UPDATE products SET telegram_message_id = ?, telegram_long_message_id = ?, telegram_chat_id = ? WHERE id = ?')
+        .run(String(res1.messageId), res1.longMessageId ? String(res1.longMessageId) : null, TG_CHAT_ID, productId);
     } else {
       console.error(`[TG] WARNING: Product ${productId} failed to announce to Telegram after retry!`);
     }
@@ -751,10 +788,13 @@ app.delete('/api/products/:id', async (req, res) => {
   db.prepare("UPDATE products SET active = 0, removal_reason = ?, updated_at = datetime('now') WHERE id = ?")
     .run('Eliminat pel venedor des de la web', req.params.id);
 
-  // 2. Delete from Telegram
+  // 2. Delete from Telegram (photo + optional long-text reply)
   if (product.telegram_message_id && product.telegram_chat_id) {
     try {
       await deleteTelegramMessage(product.telegram_chat_id, product.telegram_message_id);
+      if (product.telegram_long_message_id) {
+        await deleteTelegramMessage(product.telegram_chat_id, product.telegram_long_message_id);
+      }
       console.log(`[Delete] TG message ${product.telegram_message_id} deleted`);
     } catch(e) {
       console.error('[Delete] TG delete error:', e.message);
@@ -853,30 +893,67 @@ app.put('/api/products/:id', async (req, res) => {
       const priceText = (updated.price && !isNaN(Number(updated.price))) ? updated.price + (updated.price_currency === 'EUR' ? '€' : ' sats') : (updated.price || 'A consultar');
       const tgUser = updated.seller_telegram ? (updated.seller_telegram.startsWith('@') ? updated.seller_telegram : '@' + updated.seller_telegram) : null;
       const contact = tgUser || (updated.seller_npub ? updated.seller_npub.substring(0, 16) + '...' : '');
-      const desc = (updated.description || '').substring(0, 200);
+      const desc = (updated.description || '').substring(0, 3500);
       const regionObj = updated.region ? REGIONS.find(r => r.id === updated.region) : null;
       const regionName = regionObj?.name || updated.region || '';
       const regionEmoji = regionObj?.emoji || '';
       const isCompra = /compro|compra|busco|\[compra\]/i.test(updated.title);
       const tipoText = isCompra ? 'COMPRA' : 'VENDE';
-      const caption = `🛒 *\\#${tipoText}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}\n📝 *\\#DESCRIPCION* ${tgEscape(updated.title)}\n${tgEscape(desc)}\n👤 ${tgUser ? tgUser : tgEscape(contact)}\n\n🔗 [mercasats\\.kilombino\\.com](https://mercasats.kilombino.com)`;
-      const https = require('https');
-      const postData = JSON.stringify({
-        chat_id: updated.telegram_chat_id,
-        message_id: Number(updated.telegram_message_id),
-        caption,
-        parse_mode: 'MarkdownV2',
-      });
-      await new Promise((resolve) => {
-        const r = https.request({
-          hostname: 'api.telegram.org',
-          path: `/bot${process.env.TG_BOT_TOKEN}/editMessageCaption`,
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(postData) },
-        }, (rsp) => { rsp.on('data', () => {}); rsp.on('end', resolve); });
-        r.on('error', () => resolve());
-        r.write(postData); r.end();
-      });
+      const productUrl = `https://mercasats.kilombino.com/?p=${updated.id}`;
+      const productUrlLabel = `mercasats\\.kilombino\\.com/?p\\=${updated.id}`;
+      const fullBody = `🛒 *\\#${tipoText}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}\n📝 *\\#DESCRIPCION* ${tgEscape(updated.title)}\n${tgEscape(desc)}\n👤 ${tgUser ? tgUser : tgEscape(contact)}\n\n🔗 [${productUrlLabel}](${productUrl})`;
+      const summary = `🛒 *\\#${tipoText}* \\| 💰${tgEscape(priceText)} \\| ${regionEmoji}${tgEscape(regionName || 'Sense zona')}\n📝 *${tgEscape(updated.title)}*\n\n👇 Descripció completa abaix\n🔗 [${productUrlLabel}](${productUrl})`;
+
+      const hadLong = !!updated.telegram_long_message_id;
+      const needsLong = fullBody.length > TG_CAPTION_LIMIT;
+
+      if (needsLong) {
+        // Photo caption → summary; long reply → full body
+        await tgApi('editMessageCaption', {
+          chat_id: updated.telegram_chat_id,
+          message_id: Number(updated.telegram_message_id),
+          caption: summary,
+          parse_mode: 'MarkdownV2',
+        });
+        if (hadLong) {
+          await tgApi('editMessageText', {
+            chat_id: updated.telegram_chat_id,
+            message_id: Number(updated.telegram_long_message_id),
+            text: fullBody,
+            parse_mode: 'MarkdownV2',
+            link_preview_options: { is_disabled: true },
+          });
+        } else {
+          // No long message existed; post one as a reply and remember its id
+          const textResp = await tgApi('sendMessage', {
+            chat_id: updated.telegram_chat_id,
+            message_thread_id: TG_THREAD_ID,
+            text: fullBody,
+            parse_mode: 'MarkdownV2',
+            reply_parameters: { message_id: Number(updated.telegram_message_id) },
+            link_preview_options: { is_disabled: true },
+          });
+          if (textResp.ok) {
+            db.prepare('UPDATE products SET telegram_long_message_id = ? WHERE id = ?')
+              .run(String(textResp.result.message_id), updated.id);
+          }
+        }
+      } else {
+        // Fits in one — put full body in photo caption; remove stale long reply if any
+        await tgApi('editMessageCaption', {
+          chat_id: updated.telegram_chat_id,
+          message_id: Number(updated.telegram_message_id),
+          caption: fullBody,
+          parse_mode: 'MarkdownV2',
+        });
+        if (hadLong) {
+          await tgApi('deleteMessage', {
+            chat_id: updated.telegram_chat_id,
+            message_id: Number(updated.telegram_long_message_id),
+          });
+          db.prepare('UPDATE products SET telegram_long_message_id = NULL WHERE id = ?').run(updated.id);
+        }
+      }
     } catch(e) { console.error('[Edit] TG edit error:', e.message); }
   }
 
@@ -1120,7 +1197,12 @@ async function sweepExpiredProducts() {
         db.prepare("UPDATE products SET active = 0, removal_reason = ?, updated_at = datetime('now') WHERE id = ?")
           .run(reason, product.id);
         if (product.telegram_message_id && product.telegram_chat_id) {
-          try { await deleteTelegramMessage(product.telegram_chat_id, product.telegram_message_id); }
+          try {
+            await deleteTelegramMessage(product.telegram_chat_id, product.telegram_message_id);
+            if (product.telegram_long_message_id) {
+              await deleteTelegramMessage(product.telegram_chat_id, product.telegram_long_message_id);
+            }
+          }
           catch(e) { console.error(`[ExpSweep] TG delete error for ${product.id}:`, e.message); }
         }
         if (product.nostr_event_id) {
