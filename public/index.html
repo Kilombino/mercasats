@@ -522,7 +522,11 @@
     <div id="productDetailZap"></div>
     <div id="productDetailRating" style="border-top:1px solid var(--border);padding-top:16px"></div>
     <div id="productDetailDelete"></div>
-    <button class="btn btn-outline" onclick="closeModal('productModal')" style="width:100%;margin-top:16px">Tancar</button>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">
+      <a id="viewOnNostrBtn" class="btn btn-outline" target="_blank" rel="noopener" style="flex:1;min-width:140px;display:none;text-decoration:none;align-items:center;justify-content:center;gap:8px"><img src="/amethyst.svg" alt="" style="width:18px;height:18px;flex-shrink:0"><span>Ver en Nostr</span></a>
+      <button class="btn btn-accent" onclick="shareProduct()" id="shareProductBtn" style="flex:1;min-width:140px">🔗 Compartir</button>
+      <button class="btn btn-outline" onclick="closeProductDetail()" style="flex:1;min-width:140px">Tancar</button>
+    </div>
   </div>
 </div>
 
@@ -708,6 +712,14 @@ async function init() {
   try { await restoreSession(); } catch(e) { console.warn('restoreSession:', e); }
   await Promise.all([loadCategories(), loadRegions(), loadUsers()]);
   await loadProducts();
+
+  // Open product modal if the URL contains ?p=<id> (shared/deep link)
+  try {
+    const id = new URL(window.location.href).searchParams.get('p');
+    if (id && /^\d+$/.test(id)) {
+      openProductDetail(Number(id));
+    }
+  } catch(e) { /* ignore */ }
 }
 
 // --- Categories ---
@@ -1371,11 +1383,20 @@ async function submitProduct() {
     const createdAt = Math.floor(Date.now() / 1000);
     const expirationTs = createdAt + expMonths * 30 * 24 * 3600;
 
+    // Generate a client-side d-tag so kind 30402 is a proper parameterized
+    // replaceable event (NIP-01 / NIP-99). Server stores this d-tag so future
+    // edits re-sign with the same one and replace the original on relays.
+    const dRandBytes = new Uint8Array(8);
+    crypto.getRandomValues(dRandBytes);
+    const dRand = Array.from(dRandBytes).map(b => b.toString(16).padStart(2, '0')).join('');
+    const dTag = 'mercasats-' + dRand;
+
     // Sign a Nostr event as proof of authorship
     const productEvent = {
       kind: 30402, // NIP-99 classified listing
       created_at: createdAt,
       tags: [
+        ['d', dTag],
         ['title', title],
         ['price', price, document.getElementById('npCurrency').value],
         ['t', 'mercasats'],
@@ -1581,6 +1602,20 @@ async function openProductDetail(id) {
       } catch(e) { console.error('nevent encode error:', e); }
     }
 
+    // "Ver en Nostr" footer button — opens the kind 30402 event on plebeian.market,
+    // which renders NIP-99 listings visually. Plebeian's router expects the raw
+    // 64-char hex event id (not a naddr/nevent), and its NDK fetches from the
+    // major relays where the seller's signed event is already published.
+    const nostrBtn = document.getElementById('viewOnNostrBtn');
+    if (nostrBtn) {
+      if (p.nostr_event_id && /^[0-9a-f]{64}$/i.test(p.nostr_event_id)) {
+        nostrBtn.href = `https://plebeian.market/products/${p.nostr_event_id}`;
+        nostrBtn.style.display = 'inline-flex';
+      } else {
+        nostrBtn.style.display = 'none';
+      }
+    }
+
     // Seller info
     const sellerEl = document.getElementById('productDetailSeller');
     const sellerLink = p.seller_telegram ? `<a href="https://t.me/${p.seller_telegram.replace('@','')}" target="_blank" style="color:var(--accent);text-decoration:none;font-weight:600">${escapeHtml(p.seller_telegram)}</a>` : '';
@@ -1703,10 +1738,74 @@ async function openProductDetail(id) {
     }
 
     document.getElementById('productModal').classList.add('active');
+    window._currentProduct = p;
+
+    // Deep-link: push /?p={id} without reloading, so the URL is shareable
+    // and the browser back button closes the modal.
+    try {
+      const url = new URL(window.location.href);
+      if (url.searchParams.get('p') !== String(p.id)) {
+        url.searchParams.set('p', String(p.id));
+        history.pushState({ productId: p.id }, '', url.toString());
+      }
+    } catch(e) { /* ignore history errors */ }
   } catch(e) {
     console.error('Product detail error:', e);
   }
 }
+
+function closeProductDetail() {
+  closeModal('productModal');
+  window._currentProduct = null;
+  try {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has('p')) {
+      url.searchParams.delete('p');
+      history.pushState({}, '', url.pathname + (url.search || '') + url.hash);
+    }
+  } catch(e) {}
+}
+
+function productShareUrl(id) {
+  const url = new URL(window.location.origin + window.location.pathname);
+  url.searchParams.set('p', String(id));
+  return url.toString();
+}
+
+async function shareProduct() {
+  const p = window._currentProduct;
+  if (!p) return;
+  const shareUrl = productShareUrl(p.id);
+  const title = p.title || 'Anunci Merca-sats';
+  const btn = document.getElementById('shareProductBtn');
+  // Try native Web Share API first (mobile)
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text: title, url: shareUrl });
+      return;
+    } catch(e) { /* user cancelled; fall back to clipboard */ }
+  }
+  // Fallback: copy to clipboard
+  try {
+    await navigator.clipboard.writeText(shareUrl);
+    const orig = btn.textContent;
+    btn.textContent = '✅ Enllaç copiat!';
+    setTimeout(() => { btn.textContent = orig; }, 2000);
+  } catch(e) {
+    prompt('Copia aquest enllaç:', shareUrl);
+  }
+}
+
+// Browser back button / initial load: open modal if ?p=<id> is in URL
+window.addEventListener('popstate', () => {
+  const id = new URL(window.location.href).searchParams.get('p');
+  if (id) {
+    openProductDetail(Number(id));
+  } else {
+    closeModal('productModal');
+    window._currentProduct = null;
+  }
+});
 
 function setProductStars(n) {
   window._productStars = n;
@@ -1803,6 +1902,7 @@ async function openEditProduct(productId) {
     if (!res.ok) return alert('Error carregant producte');
     const p = await res.json();
     document.getElementById('epId').value = p.id;
+    document.getElementById('epId').dataset.dTag = p.nostr_d_tag || ('mercasats-' + p.id);
     document.getElementById('epTitle').value = p.title || '';
     document.getElementById('epDesc').value = p.description || '';
     document.getElementById('epPrice').value = p.price || '';
@@ -1838,6 +1938,7 @@ async function openEditProduct(productId) {
 
 async function submitEditProduct() {
   const id = document.getElementById('epId').value;
+  const dTag = document.getElementById('epId').dataset.dTag || ('mercasats-' + id);
   const title = document.getElementById('epTitle').value.trim();
   const description = document.getElementById('epDesc').value.trim();
   const price = document.getElementById('epPrice').value.trim();
@@ -1862,7 +1963,7 @@ async function submitEditProduct() {
       kind: 30402,
       created_at: createdAt,
       tags: [
-        ['d', 'mercasats-' + id],
+        ['d', dTag],
         ['title', title],
         ['price', price, price_currency],
         ['t', 'mercasats'],
@@ -2187,12 +2288,35 @@ function bech32Decode(str) {
   return { hrp, words };
 }
 
-function eventIdToNevent(hexEventId) {
-  // TLV encoding: type 0 (event id), length 32, then 32 bytes
-  const eventIdBytes = hexToBytes(hexEventId);
-  const tlv = [0, 32, ...eventIdBytes];
+function eventIdToNevent(hexEventId, authorHex, relays = []) {
+  // NIP-19 nevent TLV: 0=id(32), 1=relay (repeatable), 2=author(32), 3=kind(4 BE)
+  const tlv = [];
+  tlv.push(0, 32, ...hexToBytes(hexEventId));
+  for (const r of relays) {
+    const rB = Array.from(new TextEncoder().encode(r));
+    tlv.push(1, rB.length, ...rB);
+  }
+  if (authorHex && /^[0-9a-f]{64}$/i.test(authorHex)) {
+    tlv.push(2, 32, ...hexToBytes(authorHex));
+  }
   const words = convertBits(tlv, 8, 5, true);
   return bech32Encode('nevent', words);
+}
+
+function productAddrToNaddr(pubkeyHex, identifier, kind = 30402, relays = ['wss://relay.kilombino.com', 'wss://relay.primal.net']) {
+  // NIP-19 naddr TLV: 0=d, 1=relay (repeatable), 2=author(32), 3=kind(4 BE)
+  const tlv = [];
+  const idBytes = Array.from(new TextEncoder().encode(identifier));
+  tlv.push(0, idBytes.length, ...idBytes);
+  for (const r of relays) {
+    const rBytes = Array.from(new TextEncoder().encode(r));
+    tlv.push(1, rBytes.length, ...rBytes);
+  }
+  const pkBytes = hexToBytes(pubkeyHex);
+  tlv.push(2, 32, ...pkBytes);
+  tlv.push(3, 4, (kind >> 24) & 0xff, (kind >> 16) & 0xff, (kind >> 8) & 0xff, kind & 0xff);
+  const words = convertBits(tlv, 8, 5, true);
+  return bech32Encode('naddr', words);
 }
 
 init();
