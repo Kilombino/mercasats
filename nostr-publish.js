@@ -14,9 +14,7 @@ const RELAYS = [
   'wss://relay.primal.net',
   'wss://relay.damus.io',
   'wss://nos.lol',
-  'wss://relay.snort.social',
-  'wss://nostr.wine',
-  'wss://relay.nostr.band'
+  'wss://relay.minibolt.info'
 ];
 
 const WEB_URL = 'https://mercasats.kilombino.com';
