@@ -362,25 +362,25 @@ async function poll() {
 
 // --- Deletion checker: detect messages deleted from Telegram ---
 const CHECK_DELETED_INTERVAL = 10 * 60_000; // 10 minutes
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '628227864'; // Kilombino DM — silent copy target
 const db = require('better-sqlite3')(path.join(__dirname, 'merkasats.db'), { readonly: true });
 
 async function checkMessageExists(chatId, messageId) {
-  // Try to copy the message to the bot's own context; if it fails, message was deleted
+  // Copy the message to a private admin chat (Kilombino's DM with the bot) and
+  // immediately delete the copy. Must NOT copy to the same group chat — that
+  // causes visible spam. Private DM with disable_notification is silent.
   try {
-    // Use forwardMessage to a temporary destination (same chat) and immediately delete
-    // Actually, use copyMessage which is lighter
     const result = await tgApi('copyMessage', {
-      chat_id: chatId,
+      chat_id: ADMIN_CHAT_ID,
       from_chat_id: chatId,
       message_id: Number(messageId),
       disable_notification: true
     });
-    // Message exists — delete the copy
     if (result && result.message_id) {
       await tgApi('deleteMessage', {
-        chat_id: chatId,
+        chat_id: ADMIN_CHAT_ID,
         message_id: result.message_id
-      }).catch(() => {}); // ignore if delete fails
+      }).catch(() => {});
     }
     return true;
   } catch (e) {
@@ -388,11 +388,9 @@ async function checkMessageExists(chatId, messageId) {
         e.message.includes('message not found'))) {
       return false;
     }
-    // "can't be copied" means message EXISTS but has restrictions — not deleted
     if (e.message && e.message.includes("message can't be copied")) {
       return true;
     }
-    // Other error (rate limit, network) — assume message still exists
     console.error(`[Checker] Error checking msg ${messageId}:`, e.message);
     return true;
   }
@@ -458,7 +456,7 @@ poll();
 // Repeat polls for new messages
 setInterval(poll, POLL_INTERVAL);
 
-// Deletion checker disabled — copyMessage+deleteMessage causes visible spam in the group.
-// To remove products when TG messages are deleted, use /borrar command or manual removal.
-// setTimeout(checkDeleted, 60_000);
-// setInterval(checkDeleted, CHECK_DELETED_INTERVAL);
+// Deletion checker: copies the message to ADMIN_CHAT_ID (Kilombino DM) to test
+// existence, then deletes the copy. Silent with disable_notification.
+setTimeout(checkDeleted, 60_000);
+setInterval(checkDeleted, CHECK_DELETED_INTERVAL);
