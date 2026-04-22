@@ -373,7 +373,7 @@ async function poll() {
 }
 
 // --- Deletion checker: detect messages deleted from Telegram ---
-const CHECK_DELETED_INTERVAL = 10 * 60_000; // 10 minutes
+const CHECK_DELETED_INTERVAL = 60 * 60_000; // 1 hour
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '628227864'; // Kilombino DM — silent copy target
 // DB opened read-write: we need to mark can_check_deletion for newly-scraped products
 const db = require('better-sqlite3')(path.join(__dirname, 'merkasats.db'));
