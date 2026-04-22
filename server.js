@@ -394,6 +394,7 @@ const REGIONS = [
   { id: 'lleida', name: 'Pla de Lleida', emoji: '🍸' },
   { id: 'zaragoza', name: 'Zaragoza', emoji: '🍑' },
   { id: 'galicia', name: 'Galicia', emoji: '🐙' },
+  { id: 'tenerife', name: 'Tenerife', emoji: '🌋' },
   { id: 'sensezna', name: 'Sense zona', emoji: '🌍' },
 ];
 
@@ -700,6 +701,7 @@ app.get('/api/regions', (req, res) => {
     { id: 'lleida', name: 'Pla de Lleida', emoji: '🍸' },
     { id: 'zaragoza', name: 'Zaragoza', emoji: '🍑' },
     { id: 'galicia', name: 'Galicia', emoji: '🐙' },
+    { id: 'tenerife', name: 'Tenerife', emoji: '🌋' },
     { id: 'sensezna', name: 'Sense zona', emoji: '🌍' },
   ];
   res.json(regions);
