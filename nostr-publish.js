@@ -62,16 +62,19 @@ function publishToRelays(event) {
 
 // Verify event exists on at least one relay, retry if not
 async function publishWithVerification(event, maxRetries = 2) {
+  let lastResults = [];
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const results = await publishToRelays(event);
+    lastResults = results;
     const successes = results.filter(r => r.ok);
     if (successes.length > 0) {
       return { results, successes: successes.length, attempt };
     }
-    console.log(`[Nostr] Publish attempt ${attempt + 1} failed (0/${results.length} relays). ${attempt < maxRetries ? 'Retrying in 3s...' : 'Giving up.'}`);
+    const errs = results.map(r => `${r.relay}: ${r.err || 'rejected'}`).join(' | ');
+    console.log(`[Nostr] Publish attempt ${attempt + 1} failed (0/${results.length} relays). Errors: ${errs}. ${attempt < maxRetries ? 'Retrying in 3s...' : 'Giving up.'}`);
     if (attempt < maxRetries) await new Promise(r => setTimeout(r, 3000));
   }
-  return { results: [], successes: 0, attempt: maxRetries };
+  return { results: lastResults, successes: 0, attempt: maxRetries };
 }
 
 /**
