@@ -1188,6 +1188,13 @@ async function initNostrConnect() {
   }
 }
 
+// Compute Nostr event id (sha256 of canonical serialization, NIP-01)
+async function nostrEventHash(evt) {
+  const canonical = JSON.stringify([0, evt.pubkey, evt.created_at, evt.kind, evt.tags, evt.content]);
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // --- Amber signing (Android) ---
 function amberGetPublicKey() {
   const callbackUrl = window.location.origin + '/amber-callback';
@@ -1212,7 +1219,7 @@ async function amberSignEvent(event) {
 }
 
 // Check URL for Amber callback
-function checkAmberCallback() {
+async function checkAmberCallback() {
   const path = window.location.pathname;
   const params = new URLSearchParams(window.location.search);
   const pending = sessionStorage.getItem('amber_pending');
@@ -1251,7 +1258,9 @@ function checkAmberCallback() {
     sessionStorage.removeItem('amber_event');
     window.history.replaceState({}, '', '/');
     if (window._amberSignResolve) {
-      window._amberSignResolve({ ...event, sig: result, pubkey: userNpub });
+      const withPubkey = { ...event, pubkey: userNpub };
+      const id = await nostrEventHash(withPubkey);
+      window._amberSignResolve({ ...withPubkey, id, sig: result });
     }
   }
 }

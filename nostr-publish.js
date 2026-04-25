@@ -6,7 +6,7 @@
  * - Notifies sellers when their product is zapped/sold
  */
 
-const { finalizeEvent, getPublicKey } = require('nostr-tools/pure');
+const { finalizeEvent, getPublicKey, getEventHash, verifyEvent } = require('nostr-tools/pure');
 const WebSocket = require('ws');
 
 const RELAYS = [
@@ -108,6 +108,22 @@ async function publishProduct(product, signedEvent, opts = {}) {
       content: signedEvent.content || '',
       sig: signedEvent.sig
     };
+
+    // Diagnose: does the id match the canonical hash? Does the sig verify?
+    try {
+      const computedId = getEventHash(cleanEvent);
+      const idMatches = computedId === cleanEvent.id;
+      const sigOk = idMatches ? verifyEvent(cleanEvent) : false;
+      if (!idMatches) {
+        console.error(`[Nostr] EVENT ID MISMATCH for product ${id}: client sent ${cleanEvent.id}, canonical hash is ${computedId}. Tags: ${JSON.stringify(cleanEvent.tags)}. Content length: ${cleanEvent.content.length}. Created_at: ${cleanEvent.created_at}.`);
+      } else if (!sigOk) {
+        console.error(`[Nostr] SIG VERIFY FAILED for product ${id}: id matches but sig invalid. Pubkey: ${cleanEvent.pubkey}, Sig: ${cleanEvent.sig}`);
+      } else {
+        console.log(`[Nostr] Event ${cleanEvent.id.substring(0, 16)}... id+sig verify OK before publish`);
+      }
+    } catch (e) {
+      console.error(`[Nostr] Could not verify event id/sig: ${e.message}`);
+    }
 
     const { results, successes: okCount, attempt } = await publishWithVerification(cleanEvent);
     const failures = results.filter(r => !r.ok);
