@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const { publishProduct, startZapMonitor, deleteFromNostr } = require('./nostr-publish');
+const { pickPhotoForProduct } = require('./generic-photos');
 
 // bech32 npub → hex conversion
 function npubToHex(npub) {
@@ -289,9 +290,16 @@ app.post('/api/products', async (req, res) => {
   `);
 
   const finalRegion = forcedRegionForSeller(seller_telegram) || region || null;
+
+  let finalPhotos = photos || [];
+  if (finalPhotos.length === 0) {
+    const generic = pickPhotoForProduct({ title, description, category });
+    if (generic) finalPhotos = [generic];
+  }
+
   const result = stmt.run(
     title, description || '', price, price_currency || 'sats',
-    finalRegion, category || null, JSON.stringify(photos || []),
+    finalRegion, category || null, JSON.stringify(finalPhotos),
     seller_telegram || null, seller_npub || null,
     dTagFromSig
   );
@@ -312,11 +320,10 @@ app.post('/api/products', async (req, res) => {
   console.log(`[Product ${productId}] signed_event.pubkey:`, signed_event?.pubkey?.substring(0, 16) + '...');
   console.log(`[Product ${productId}] sig is placeholder:`, signed_event?.sig === '00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000');
   try {
-    const parsedPhotos = photos || [];
     const nostrEventId = await publishProduct({
       id: productId, title, description, price, price_currency,
       seller_npub: seller_npub || null, seller_telegram: seller_telegram || null,
-      photos: parsedPhotos, category, region
+      photos: finalPhotos, category, region
     }, signed_event, { noExpiration });
     if (nostrEventId) {
       db.prepare('UPDATE products SET nostr_event_id = ? WHERE id = ?').run(nostrEventId, productId);
@@ -334,9 +341,9 @@ app.post('/api/products', async (req, res) => {
     // sendTelegramAnnounce handles the caption/text-message split automatically:
     // if the full body fits in 1024 chars, single photo+caption; otherwise the
     // photo gets a short summary caption and the full body goes in a text reply.
-    const hasPhoto = photos && photos.length > 0;
+    const hasPhoto = finalPhotos && finalPhotos.length > 0;
     const desc = (description || '').substring(0, 3500);
-    const photoUrl = hasPhoto ? (photos[0].startsWith('http') ? photos[0] : `https://mercasats.kilombino.com${photos[0]}`) : null;
+    const photoUrl = hasPhoto ? (finalPhotos[0].startsWith('http') ? finalPhotos[0] : `https://mercasats.kilombino.com${finalPhotos[0]}`) : null;
     const regionObj = region ? REGIONS.find(r => r.id === region) : null;
     const regionName = regionObj?.name || region || '';
     const regionEmoji = regionObj?.emoji || '';
@@ -627,9 +634,16 @@ app.post('/api/internal/product', async (req, res) => {
   `);
 
   const finalRegion = forcedRegionForSeller(seller_telegram) || region || null;
+
+  let finalPhotos = photos || [];
+  if (finalPhotos.length === 0) {
+    const generic = pickPhotoForProduct({ title, description, category });
+    if (generic) finalPhotos = [generic];
+  }
+
   const result = stmt.run(
     title, description || '', price, price_currency || 'sats',
-    finalRegion, category || null, JSON.stringify(photos || []),
+    finalRegion, category || null, JSON.stringify(finalPhotos),
     seller_telegram || null, seller_npub || null, telegram_message_id || null, telegram_chat_id || null
   );
 
@@ -644,7 +658,7 @@ app.post('/api/internal/product', async (req, res) => {
     const nostrEventId = await publishProduct({
       id: productId, title, description, price, price_currency: price_currency || 'sats',
       seller_npub: seller_npub || null, seller_telegram: seller_telegram || null,
-      photos: photos || [], category, region
+      photos: finalPhotos, category, region
     }, null, { noExpiration });
     if (nostrEventId) {
       db.prepare('UPDATE products SET nostr_event_id = ? WHERE id = ?').run(nostrEventId, productId);
