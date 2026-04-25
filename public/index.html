@@ -373,7 +373,7 @@
   <div class="header-inner">
     <div class="header-side header-left">
       <h4>🟠 Què és Merca-sats?</h4>
-      <p>Organitzador d'anuncis de béns i serveis per bitcoin a Catalunya. Connectem compradors i venedors de <a href="https://t.me/trobadesbitcoiners" target="_blank">Trobades Bitcoiners</a> a través de la web, l'app i Telegram. Pagaments directes entre parts, en bitcoin o sats.</p>
+      <p>Organitzador d'anuncis de béns i serveis per bitcoin a Catalunya. Connectem compradors i venedors de <a href="https://t.me/trobadesbitcoiners" target="_blank">Trobades Bitcoiners</a> a través de nostr, la web, l'app i Telegram. Pagaments directes entre parts, en bitcoin o sats.</p>
     </div>
     <div class="header-center">
       <img src="/logo.jpg" alt="Merca-sats" style="height:80px;border-radius:12px;margin-bottom:8px">
@@ -818,7 +818,7 @@ function renderProducts(products) {
           <div class="product-desc">${escapeHtml(p.description || '')}</div>
           <div class="product-price">${priceDisplay}</div>
           <div class="product-meta">
-            <div class="product-seller">👤 ${sellerLink}${p.seller_npub ? ` <span onclick="event.stopPropagation();navigator.clipboard.writeText('${hexToNpub(p.seller_npub)}');this.textContent='✅'" style="cursor:pointer;font-size:11px;color:var(--accent);margin-left:4px" title="Copiar npub">📋</span>` : ''}</div>
+            <div class="product-seller">👤 ${sellerLink}${p.seller_npub ? ` <span onclick="event.stopPropagation();navigator.clipboard.writeText('${hexToNpub(p.seller_npub)}');this.innerHTML='✅ npub copiada'" style="cursor:pointer;font-size:11px;color:var(--accent);margin-left:4px;display:inline-flex;align-items:center;gap:3px" title="Copiar npub">📋 copiar npub</span>` : ''}</div>
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               ${catText ? `<span class="product-source">${catText}</span>` : ''}
               ${regionText ? `<span style="font-size:12px">${regionText}</span>` : ''}
