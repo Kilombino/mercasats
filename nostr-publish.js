@@ -11,9 +11,11 @@ const WebSocket = require('ws');
 
 const RELAYS = [
   'wss://relay.kilombino.com',
+  'wss://trobades.kilombino.com',
   'wss://relay.primal.net',
   'wss://relay.damus.io',
   'wss://nos.lol',
+  'wss://nostr.mom',
   'wss://relay.minibolt.info'
 ];
 
