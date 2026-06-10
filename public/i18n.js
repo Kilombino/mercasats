@@ -57,6 +57,13 @@
     'Confiança: Alta': { es: 'Confianza: Alta', en: 'Trust: High' },
     'Confiança: Mitjana': { es: 'Confianza: Media', en: 'Trust: Medium' },
     'Confiança: Baixa': { es: 'Confianza: Baja', en: 'Trust: Low' },
+    // Trust breakdown labels
+    'Zaps rebuts': { es: 'Zaps recibidos', en: 'Zaps received' },
+    'Zaps enviats': { es: 'Zaps enviados', en: 'Zaps sent' },
+    'Identitat Nostr': { es: 'Identidad Nostr', en: 'Nostr identity' },
+    'Seguiment mutu': { es: 'Seguimiento mutuo', en: 'Mutual follow' },
+    'Activitat': { es: 'Actividad', en: 'Activity' },
+    'Calculant confiança…': { es: 'Calculando confianza…', en: 'Computing trust…' },
     // Header
     '🟠 Què és Merca-sats?': {
       es: '🟠 ¿Qué es Merca-sats?',
