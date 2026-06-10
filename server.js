@@ -586,6 +586,24 @@ app.post('/api/ratings', (req, res) => {
         DO UPDATE SET stars = excluded.stars, comment = excluded.comment, created_at = datetime('now')
     `).run(rater_npub, rated_telegram, stars, comment || null);
   }
+
+  // Notify the review in the community Telegram channel.
+  try {
+    const nameOf = (hex, tg) => {
+      if (hex) {
+        const p = db.prepare('SELECT display_name, telegram_username FROM npub_profiles WHERE npub = ?').get(hex);
+        if (p && p.display_name) return p.display_name;
+        if (p && p.telegram_username) return '@' + String(p.telegram_username).replace(/^@+/, '');
+        return hexToNpub(hex).substring(0, 14) + '…';
+      }
+      return tg || '?';
+    };
+    const starsStr = '⭐'.repeat(stars) + '☆'.repeat(5 - stars);
+    const text = `🌟 Nova ressenya a MercaSats\n${starsStr}\n👤 ${nameOf(rater_npub, null)} → ${nameOf(rated_npub, rated_telegram)}`
+      + (comment ? `\n💬 «${comment}»` : '');
+    tgApi('sendMessage', { chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, text, link_preview_options: { is_disabled: true } }).catch(() => {});
+  } catch (e) { console.error('[Rating TG]', e.message); }
+
   res.json({ ok: true });
 });
 
