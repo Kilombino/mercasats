@@ -83,6 +83,8 @@ app.get('/zones', (req, res) => res.sendFile(path.join(__dirname, 'public', 'zon
 app.get('/meetups', (req, res) => res.sendFile(path.join(__dirname, 'public', 'meetups.html')));
 // "What is Merca-sats" landing page (real HTML content for SEO).
 app.get('/que-es', (req, res) => res.sendFile(path.join(__dirname, 'public', 'que-es.html')));
+// security.txt (RFC 9116) — express.static ignores dotfiles, so serve it explicitly.
+app.get('/.well-known/security.txt', (req, res) => res.type('text/plain').sendFile(path.join(__dirname, 'public', '.well-known', 'security.txt')));
 
 // --- Photo upload ---
 const multer = require('multer');
