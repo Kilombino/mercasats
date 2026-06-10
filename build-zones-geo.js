@@ -32,6 +32,7 @@ const META = {
   zaragoza:     { name: 'Zaragoza',       emoji: '🍑', color: '#C9883A' },
   galicia:      { name: 'Galicia',        emoji: '🐙', color: '#4A90D9' },
   tenerife:     { name: 'Tenerife',       emoji: '🌋', color: '#C0563A' },
+  madrid:       { name: 'Madrid',         emoji: '🐻', color: '#9B2242' },
 };
 
 // zone -> Catalan comarques (by nom_comar)
@@ -52,6 +53,7 @@ const COMARQUES = {
 const PROVINCES = {
   zaragoza: ['Zaragoza'],
   galicia:  ['A Coruña', 'Lugo', 'Ourense', 'Pontevedra'],
+  madrid:   ['Madrid'],
 };
 
 const comByName = (n) => com.features.find(f => f.properties.nom_comar === n || f.properties.comarca === n);
