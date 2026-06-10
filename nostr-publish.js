@@ -157,14 +157,32 @@ async function publishProduct(product, signedEvent, opts = {}) {
   return event.id;
 }
 
+// Standard geohash encoder (for the NIP "g" geolocation tag).
+function geohashEncode(lat, lon, precision = 9) {
+  const base32 = '0123456789bcdefghjkmnpqrstuvwxyz';
+  let idx = 0, bit = 0, evenBit = true, gh = '';
+  let latMin = -90, latMax = 90, lonMin = -180, lonMax = 180;
+  while (gh.length < precision) {
+    if (evenBit) { const mid = (lonMin + lonMax) / 2; if (lon >= mid) { idx = idx * 2 + 1; lonMin = mid; } else { idx = idx * 2; lonMax = mid; } }
+    else { const mid = (latMin + latMax) / 2; if (lat >= mid) { idx = idx * 2 + 1; latMin = mid; } else { idx = idx * 2; latMax = mid; } }
+    evenBit = !evenBit;
+    if (++bit === 5) { gh += base32[idx]; bit = 0; idx = 0; }
+  }
+  return gh;
+}
+
 /**
  * Build a kind 30402 event signed with the marketplace (Trobades Bitcoiners) key.
  */
 function buildMarketplaceEvent(product, opts = {}) {
-  const { id, title, description, price, price_currency, seller_npub, seller_telegram, photos, category, region } = product;
+  const { id, title, description, price, price_currency, seller_npub, seller_telegram, photos, category, region, coords, shipping_option, shipping_price } = product;
   const currUpper = (price_currency || 'sats').toUpperCase();
   const currSymbol = currUpper === 'EUR' ? '€' : currUpper === 'BTC' ? 'BTC' : 'sats';
-  const content = `${title}\n\n${description || ''}\n\n💰 ${price} ${currSymbol}\n👤 ${seller_telegram || ''}\n🔗 ${WEB_URL}`;
+  const productUrl = `${WEB_URL}/?p=${id}`;
+  const coordsLine = coords ? `\n📍 ${coords}` : '';
+  const SHIP = { inclos: 'Incluidos en el precio', peninsula: 'Solo península', peninsula_illes: 'Península e islas', internacional: 'Internacional' };
+  const shipLine = (shipping_option && shipping_option !== 'no') ? `\n📦 Envíos: ${SHIP[shipping_option] || shipping_option}${shipping_price ? ' (' + shipping_price + ')' : ''}` : '';
+  const content = `${title}\n\n${description || ''}\n\n💰 ${price} ${currSymbol}\n👤 ${seller_telegram || ''}${coordsLine}${shipLine}\n🔗 ${productUrl}`;
 
   const createdAt = Math.floor(Date.now() / 1000);
 
@@ -175,11 +193,17 @@ function buildMarketplaceEvent(product, opts = {}) {
     ['published_at', String(createdAt)],
     ['location', region || 'Catalunya'],
     ['price', String(price), currUpper === 'EUR' ? 'EUR' : currUpper === 'BTC' ? 'BTC' : 'SAT'],
+  ];
+  if (coords) {
+    const [la, lo] = coords.split(',').map(Number);
+    if (Number.isFinite(la) && Number.isFinite(lo)) tags.push(['g', geohashEncode(la, lo)]);
+  }
+  tags.push(
     ['t', 'mercasats'],
     ['t', 'p2p'],
     ['t', 'bitcoin'],
-    ['r', `${WEB_URL}`],
-  ];
+    ['r', productUrl],
+  );
 
   if (!opts.noExpiration) {
     const months = Number.isFinite(opts.expirationMonths) && opts.expirationMonths > 0

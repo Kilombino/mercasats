@@ -1,0 +1,41 @@
+{
+  "note": "Próximos meetups. Refrescar desde https://2140meetups.com/ (sección 'Próximos meetups') cuando Kilombino lo recuerde, o añadir manuales. Fechas en ISO (YYYY-MM-DD).",
+  "events": [
+    {
+      "date": "2026-06-09",
+      "time": "19:00",
+      "name": "Bitcoin Tuesday",
+      "city": "Madrid",
+      "title": "#85 — La Paradoja Cypherpunk: Usar stablecoins para incorporar al mundo a Bitcoin",
+      "url": "https://2140meetups.com/comunidad/5606/"
+    },
+    {
+      "date": "2026-06-19",
+      "time": "",
+      "name": "Tenerife 2140",
+      "city": "Tenerife",
+      "title": "",
+      "url": "https://2140meetups.com/comunidad/7343/"
+    },
+    {
+      "date": "2026-06-29",
+      "time": "19:00",
+      "name": "Barcelona Bitcoin Only",
+      "city": "Barcelona",
+      "title": "🔬 Bitcoin privado y limpio para todos con minería ⛏️",
+      "location": "MOB Barcelona · Carrer Bailèn 11, L'Eixample, 08010 Barcelona",
+      "lat": 41.3917779,
+      "lng": 2.1773784,
+      "url": "https://www.meetup.com/bitcoin-barcelona/events/315131903/"
+    },
+    {
+      "date": "2026-06-27",
+      "time": "13:00",
+      "name": "Asturias 2140",
+      "city": "Oviedo",
+      "title": "Parrilla Buenos Aires",
+      "location": "Parrilla Buenos Aires, Oviedo",
+      "url": "https://2140meetups.com/comunidad/5893/"
+    }
+  ]
+}

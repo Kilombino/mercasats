@@ -79,7 +79,9 @@ async function downloadPhoto(fileId) {
       res.pipe(dest);
       dest.on('finish', () => {
         dest.close();
-        resolve(`/photos/${localName}`);
+        const url = `/photos/${localName}`;
+        generateThumbAsync(url);
+        resolve(url);
       });
     }).on('error', (e) => {
       fs.unlink(localPath, () => {});
@@ -114,6 +116,16 @@ function postProduct(product) {
 }
 
 const { findGenericPhoto, pickPhotoForProduct } = require('./generic-photos');
+const { generateThumbAsync } = require('./thumb');
+
+// Detects messages that mimic the bot's announcement format. These are
+// usually copy-pastes from a previous bot post and the actual title lives
+// in the "📝 #DESCRIPCION X" line, not the first line. Match any 🛒-prefixed
+// hashtag at the start (VENDE/VENDO/COMPRA/COMPRO/SERVEI/SERVICIO/etc.) —
+// users mix Catalan/Spanish freely.
+function isBotFormatMimicry(text) {
+  return /^\s*🛒\s*#[A-Za-zÀ-ÿ]+/i.test(text || '');
+}
 
 // Parse a message into a product listing
 function parseMessage(msg) {
@@ -123,39 +135,64 @@ function parseMessage(msg) {
   const from = msg.from || {};
   const username = from.username ? `@${from.username}` : from.first_name || 'Anónimo';
 
-  // Try to extract price (look for numbers followed by sats/btc/€/eur)
+  // Detect "#node X" / "nodo X" → region id, and capture the phrase to strip
+  // it before category detection (so "node Barcelona" doesn't match the
+  // bitcoin keyword set).
+  const { region, phrase: nodePhrase } = detectNodeRegion(text);
+
+  // Try to extract price (numbers + optional k/M suffix + sats/btc/€/eur).
+  // Examples: "28k sats" → 28000, "1.5M sats" → 1500000, "30.000 sats" → 30000.
   let price = 'A convenir';
   let priceCurrency = 'sats';
-  const priceMatch = text.match(/(\d[\d.,]*)\s*(sats?|btc|€|eur|euros?)/i);
+  const priceMatch = text.match(/(\d[\d.,]*)\s*([kKmM])?\s*(sats?|btc|€|eur|euros?)/i);
   if (priceMatch) {
     const rawPrice = priceMatch[1];
-    const unit = priceMatch[2].toLowerCase();
+    const mult = (priceMatch[2] || '').toLowerCase();
+    const unit = priceMatch[3].toLowerCase();
     if (unit.startsWith('btc')) priceCurrency = 'btc';
     else if (unit === '€' || unit.startsWith('eur')) priceCurrency = 'eur';
     else priceCurrency = 'sats';
 
-    if (priceCurrency === 'sats') {
-      // Sats are always integers — remove thousand separators (. or ,)
-      price = rawPrice.replace(/[.,]/g, '');
-    } else {
-      // For EUR/BTC, convert comma decimal to dot
-      price = rawPrice.replace(',', '.');
+    const numStr = rawPrice.replace(/\./g, '').replace(',', '.');
+    let value = parseFloat(numStr);
+    if (mult === 'k') value *= 1000;
+    else if (mult === 'm') value *= 1000000;
+
+    if (Number.isFinite(value)) {
+      price = priceCurrency === 'sats' ? String(Math.round(value)) : String(value);
     }
   }
 
-  // First line or first sentence as title (max 60 chars)
-  const firstLine = text.split('\n')[0].trim();
-  const title = firstLine.length > 60 ? firstLine.substring(0, 57) + '...' : firstLine;
+  // Title extraction. Default = first non-meta line (skip bare-hashtag and
+  // "#node X" lines so "#Informàtica\n#node Barcelona\nDisc Dur..." titles as
+  // "Disc Dur..."). If the message mimics the bot format (🛒 #VENDE/#COMPRA),
+  // pull from the 📝 #DESCRIPCION line.
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+  const isMetaLine = (l) =>
+    /^#?(?:node|nodo)\s+\S+/i.test(l) ||
+    /^#[A-Za-zÀ-ÿ]+\s*$/.test(l);
+  let titleSource = lines.find(l => !isMetaLine(l)) || lines[0] || '';
+  if (isBotFormatMimicry(text)) {
+    const descLine = lines.find(l => /^📝\s*#DESCRIP/i.test(l));
+    if (descLine) {
+      titleSource = descLine.replace(/^📝\s*#DESCRIP\w*\s*/i, '').trim();
+    } else if (lines[1]) {
+      titleSource = lines[1];
+    }
+  }
+  const title = titleSource.length > 60 ? titleSource.substring(0, 57) + '...' : titleSource;
 
-  // Auto-detect category by keywords
-  const category = detectCategory(text);
+  // Category: explicit hashtag (#Informàtica, #Bitcoin) wins over keyword
+  // heuristics. Strip the "#node X" phrase first to avoid false matches.
+  const textForCategory = nodePhrase ? text.replace(nodePhrase, ' ') : text;
+  const category = detectCategoryHashtag(textForCategory) || detectCategory(textForCategory);
 
   return {
     title,
     description: text,
     price,
     price_currency: priceCurrency,
-    region: null,
+    region,
     category,
     photos: [],
     seller_telegram: username,
@@ -173,12 +210,13 @@ const KNOWN_NPUBS = {
   '@androdebian': '9a43f3ee53d67c6cc24aeeda2f575548db352f60f8b9d997ce32a995bd353e59',
   '@r4f4_th': '1d5357bf36c53d0921f461cf199832da78d9238b4968d3b5185051d11bdf0a52',
   '@LadySilSol': '49e38160c791790321bc93711576cbd4e0fce9895ce7b5e7abe64ad26d17f4e8',
+  '@mussolhold': '0c6ab0cabb62bcee2b2a35f49a35716f5766c6a2476134a18a3316579133b99e',
 };
 
 // Auto-detect product category from text
 const CATEGORY_RULES = [
   { id: 'informatica', keywords: ['pc', 'ordenador', 'portátil', 'laptop', 'monitor', 'teclado', 'ratón', 'impresora', 'usb', 'ssd', 'ram', 'gpu', 'cpu', 'raspberry', 'arduino'] },
-  { id: 'bitcoin', keywords: ['wallet', 'hardware wallet', 'seedsigner', 'coldcard', 'trezor', 'ledger', 'krux', 'node', 'miner', 'asic', 'bitaxe', 'nerdminer'] },
+  { id: 'bitcoin', keywords: ['wallet', 'hardware wallet', 'seedsigner', 'coldcard', 'trezor', 'ledger', 'krux', 'umbrel', 'minibolt', 'start9', 'miner', 'asic', 'bitaxe', 'nerdminer', 'lightning', 'lnd', 'cln'] },
   { id: 'energia', keywords: ['solar', 'panel', 'fotovolt', 'batería', 'inversor', 'energía', 'watt'] },
   { id: 'alimentacio', keywords: ['miel', 'aceite', 'oliva', 'carne', 'fruta', 'verdura', 'vino', 'cerveza', 'café', 'chocolate', 'queso', 'jamón', 'embutido', 'huevo', 'aliment'] },
   { id: 'roba', keywords: ['camiseta', 'zapatilla', 'zapato', 'pantalón', 'chandal', 'jersey', 'chaqueta', 'abrigo', 'gorra', 'ropa', 'roba', 'vestido', 'mcqueen', 'nike', 'adidas', 'jordan', 'sneaker', 'bambas', 'vaquero'] },
@@ -189,6 +227,10 @@ const CATEGORY_RULES = [
   { id: 'vehicle', keywords: ['coche', 'cotxe', 'moto', 'bici', 'patinete', 'rueda', 'casco', 'motor'] },
   { id: 'esport', keywords: ['deporte', 'esport', 'gym', 'fitness', 'yoga', 'esquí', 'esqui', 'pelota', 'raqueta'] },
   { id: 'llar', keywords: ['piso', 'casa', 'alquiler', 'lloguer', 'habitación', 'colchón', 'mueble', 'alojamiento', 'inmueble', 'immoble'] },
+  { id: 'eines', keywords: ['eina', 'eines', 'herramienta', 'bricolaje', 'bricolatge', 'destornillador', 'tornavís', 'taladro', 'martillo', 'martell', 'sierra', 'serra', 'llave', 'clau anglesa', 'facom', 'bosch', 'makita', 'dewalt', 'milwaukee', 'stanley'] },
+  { id: 'art', keywords: ['pintura', 'cuadro', 'quadre', 'escultura', 'lienzo', 'llenç', 'acuarela', 'aquarel·la', 'dibuix', 'ilustración', 'il·lustració', 'artesania', 'artesanía', 'óleo', 'pintor', 'escultor', 'galeria d\'art', 'galería de arte'] },
+  { id: 'p2p', keywords: ['p2p', 'peer-to-peer', 'peer to peer', 'mostro', 'nostromostro', 'robosats', 'hodlhodl', 'hodl hodl', 'agorabtc', 'agora btc', 'bisq', 'lnp2pbot', 'peach', 'sin kyc', 'no-kyc', 'no kyc', 'sense kyc'] },
+  { id: 'llibres', keywords: ['llibre', 'llibres', 'libro', 'libros', 'novela', 'novel·la', 'novel.la', 'manual', 'ensayo', 'assaig', 'poesía', 'poesia', 'cómic', 'còmic', 'comic', 'manga', 'enciclopedia', 'enciclopèdia', 'diccionari', 'diccionario'] },
 ];
 
 function detectCategory(text) {
@@ -197,6 +239,69 @@ function detectCategory(text) {
     if (rule.keywords.some(kw => lower.includes(kw))) {
       return rule.id;
     }
+  }
+  return null;
+}
+
+// "#node Barcelona" / "nodo Maresme" → region id. Cities/comarques map to the
+// canonical Mercasats region they belong to.
+const NODE_KEYWORDS = {
+  'barcelona': 'barcelona', 'bcn': 'barcelona',
+  'maresme': 'maresme', 'mataró': 'maresme', 'mataro': 'maresme',
+  'vallès': 'valles', 'valles': 'valles', 'sabadell': 'valles', 'terrassa': 'valles',
+  'osona': 'osona', 'vic': 'osona',
+  'girona': 'girona',
+  'empordà': 'emporda', 'emporda': 'emporda', 'figueres': 'emporda',
+  'tarragona': 'tarragona', 'reus': 'tarragona',
+  'baixllobregat': 'baixllobregat', 'cornellà': 'baixllobregat', 'cornella': 'baixllobregat',
+  'prat': 'baixllobregat', 'sant boi': 'baixllobregat', 'sant feliu': 'baixllobregat',
+  'garraf': 'garraf', 'sitges': 'garraf', 'vilanova': 'garraf',
+  'penedès': 'penedes', 'penedes': 'penedes', 'vilafranca': 'penedes',
+  'lleida': 'lleida',
+  'zaragoza': 'zaragoza', 'zgz': 'zaragoza', 'saragossa': 'zaragoza',
+  'galicia': 'galicia', 'galiza': 'galicia',
+  'tenerife': 'tenerife',
+};
+
+function detectNodeRegion(text) {
+  const m = text.match(/#?(?:node|nodo)[ \t]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ \t]{0,30})/i);
+  if (!m) return { region: null, phrase: null };
+  const phrase = m[0];
+  const candidate = m[1].trim().toLowerCase().replace(/\s+/g, ' ');
+  const id = NODE_KEYWORDS[candidate]
+    || NODE_KEYWORDS[candidate.replace(/\s+/g, '')]
+    || NODE_KEYWORDS[candidate.split(/\s+/)[0]]
+    || null;
+  return { region: id, phrase };
+}
+
+// Map "#Informàtica", "#Bitcoin" etc. to category ids by name match.
+const CATEGORY_NAME_MAP = {
+  'informàtica': 'informatica', 'informatica': 'informatica',
+  'bitcoin': 'bitcoin',
+  'energia': 'energia', 'energía': 'energia',
+  'alimentació': 'alimentacio', 'alimentacio': 'alimentacio', 'alimentación': 'alimentacio',
+  'roba': 'roba', 'ropa': 'roba',
+  'complements': 'complements', 'complementos': 'complements',
+  'gaming': 'gaming',
+  'finances': 'finances', 'finanzas': 'finances',
+  'serveis': 'serveis', 'servicios': 'serveis',
+  'vehicle': 'vehicle', 'vehiculo': 'vehicle', 'vehículo': 'vehicle',
+  'esport': 'esport', 'deporte': 'esport',
+  'llar': 'llar', 'hogar': 'llar',
+  'eines': 'eines', 'herramientas': 'eines',
+  'art': 'art', 'arte': 'art',
+  'p2p': 'p2p',
+  'llibres': 'llibres', 'libros': 'llibres', 'llibre': 'llibres', 'libro': 'llibres',
+  'altres': 'altres', 'otros': 'altres',
+};
+
+function detectCategoryHashtag(text) {
+  const re = /#([A-Za-zÀ-ÿ]+)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const tag = m[1].toLowerCase();
+    if (CATEGORY_NAME_MAP[tag]) return CATEGORY_NAME_MAP[tag];
   }
   return null;
 }
@@ -232,7 +337,6 @@ function addPhotoToProduct(productId, photoPath) {
 // Main polling loop
 async function poll() {
   let offset = loadOffset();
-  console.log(`[Scraper] Starting poll, offset: ${offset}`);
 
   try {
     const updates = await tgApi('getUpdates', {
@@ -262,17 +366,25 @@ async function poll() {
       const fromUser = msg.from?.username || 'unknown';
       console.log(`[Scraper] Processing message ${msg.message_id} from @${fromUser}`);
 
-      // Check if this is a photo-only follow-up to a recent product
+      // Check if this is a follow-up photo for a recent product from the same user.
+      // Treat as follow-up when: photo present + same user within window AND the
+      // message does NOT look like a fresh listing — i.e. it doesn't open with
+      // the bot-format header 🛒 #VENDE/#COMPRA/#SERVEI AND its caption doesn't
+      // carry its own price tag (e.g. "30000 sats", "40€"). A caption with a
+      // price strongly signals a separate item — collapsing it into the
+      // previous listing loses the second product.
       const hasPhoto = msg.photo && msg.photo.length > 0;
       const text = msg.text || msg.caption || '';
-      if (hasPhoto && text.length < 10 && fromId && recentProducts.has(fromId)) {
+      const looksFresh = isBotFormatMimicry(text);
+      const hasOwnPrice = /(\d[\d.,]*)\s*(sats?|btc|€|eur|euros?)/i.test(text);
+      if (hasPhoto && !looksFresh && !hasOwnPrice && fromId && recentProducts.has(fromId)) {
         const recent = recentProducts.get(fromId);
         if (Date.now() - recent.timestamp < PHOTO_LINK_WINDOW) {
           try {
             const largest = msg.photo[msg.photo.length - 1];
             const localPath = await downloadPhoto(largest.file_id);
             await addPhotoToProduct(recent.productId, localPath);
-            console.log(`[Scraper] Linked follow-up photo to product ${recent.productId}: ${localPath}`);
+            console.log(`[Scraper] Linked follow-up photo to product ${recent.productId}: ${localPath} (caption=${text.length} chars)`);
           } catch (e) {
             console.error(`[Scraper] Failed to link follow-up photo:`, e.message);
           }
@@ -352,7 +464,7 @@ async function poll() {
 }
 
 // --- Deletion checker: detect messages deleted from Telegram ---
-const CHECK_DELETED_INTERVAL = 60 * 60_000; // 1 hour
+const CHECK_DELETED_INTERVAL = 24 * 60 * 60_000; // 24 hours
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID || '628227864'; // Kilombino DM — silent copy target
 // DB opened read-write: we need to mark can_check_deletion for newly-scraped products
 const db = require('better-sqlite3')(path.join(__dirname, 'merkasats.db'));

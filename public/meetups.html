@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>MercaSats · Meetups</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<style>
+  :root { --orange:#f7931a; --bg:#0a1426; --panel:#0c1830; --muted:#8aa0c0; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:#fff;
+    font-family: 'Chakra Petch', system-ui, sans-serif; overflow:hidden; }
+  header { display:flex; align-items:center; gap:12px; padding:10px 16px;
+    border-bottom:1px solid rgba(247,147,26,0.25); background:var(--panel); }
+  header h1 { font-size:16px; margin:0; font-weight:800; letter-spacing:.5px; }
+  header .back { margin-left:auto; color:var(--orange); text-decoration:none; font-weight:700;
+    border:1px solid rgba(247,147,26,0.4); padding:5px 11px; border-radius:7px; font-size:13px; }
+  .stage { position:relative; height:calc(100vh - 49px); }
+  #map { position:absolute; inset:0; background:#000; }   /* sea = black */
+  #cursorCoords { position:fixed; z-index:1200; pointer-events:none; display:none;
+    background:rgba(8,16,32,.9); border:1px solid rgba(247,147,26,0.5); border-radius:6px;
+    padding:3px 8px; font-size:12px; color:#cfe0ff; font-variant-numeric:tabular-nums;
+    transform:translate(14px,14px); white-space:nowrap; }
+  #cursorCoords b { color:var(--orange); }
+  .hint { position:absolute; left:50%; top:10px; transform:translateX(-50%); z-index:600;
+    background:rgba(8,16,32,.82); border:1px solid rgba(247,147,26,0.25); border-radius:7px;
+    padding:6px 14px; font-size:13px; color:var(--muted); pointer-events:none; text-align:center; }
+  #inscribe { position:absolute; left:50%; bottom:16px; transform:translateX(-50%); z-index:700;
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:center;
+    background:rgba(8,16,32,.94); border:1px solid rgba(247,147,26,0.5); border-radius:10px; padding:9px 14px; }
+  #inscribe button { background:var(--orange); color:#101010; border:0; font-weight:800;
+    padding:8px 14px; border-radius:8px; cursor:pointer; font-family:inherit; font-size:13px; }
+  #inscribe code { color:#cfe0ff; font-size:13px; }
+  .leaflet-container { background:#000; outline:none; }
+  path.prov-meet { transition: filter .12s ease; cursor:pointer; }
+  path.prov-hover { filter: brightness(1.4) saturate(1.35)
+      drop-shadow(0 9px 12px rgba(0,0,0,.8)) drop-shadow(0 0 11px rgba(247,147,26,.98)); }
+  path.meetup-dot { cursor:pointer; }
+  /* Meetup modal */
+  .mu-overlay { position:fixed; inset:0; z-index:2000; background:rgba(4,8,16,.78);
+    display:none; align-items:center; justify-content:center; padding:16px; }
+  .mu-overlay.show { display:flex; }
+  .mu-card { background:var(--panel); border:1px solid rgba(247,147,26,0.4); border-radius:14px;
+    width:360px; max-width:96vw; max-height:90vh; overflow:auto; position:relative; }
+  .mu-card .mu-close { position:absolute; top:8px; right:10px; background:rgba(0,0,0,.4); color:#fff;
+    border:0; width:30px; height:30px; border-radius:8px; cursor:pointer; font-size:15px; z-index:2; }
+  .mu-card img.hero { width:100%; height:180px; object-fit:cover; display:block; border-radius:14px 14px 0 0; }
+  .mu-body { padding:16px; }
+  .mu-body h2 { margin:0 0 12px; font-size:20px; color:var(--orange); }
+  .mu-contact { display:flex; align-items:center; gap:10px; padding:9px 11px; margin-bottom:8px;
+    background:rgba(255,255,255,.04); border:1px solid rgba(247,147,26,.18); border-radius:9px;
+    color:#dfeaff; text-decoration:none; font-size:14px; cursor:pointer; width:100%; text-align:left; font-family:inherit; }
+  .mu-contact:hover { border-color:var(--orange); }
+  .mu-contact img, .mu-contact .ic { width:22px; height:22px; flex-shrink:0; display:inline-flex;
+    align-items:center; justify-content:center; font-size:18px; }
+  .mu-contact small { color:var(--muted); margin-left:auto; }
+  .mu-2140 { display:block; text-align:center; margin-top:6px; background:var(--orange); color:#101010;
+    font-weight:800; padding:11px; border-radius:9px; text-decoration:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1><img src="/logo.jpg" alt="MercaSats" style="height:26px;border-radius:6px;vertical-align:-7px;margin-right:8px">MercaSats · Meetups Bitcoin a Espanya</h1>
+  <button id="calBtn" class="back" style="margin-left:auto;cursor:pointer;background:none;font-family:inherit">📅 Calendari</button>
+  <a class="back" href="/" style="margin-left:0">← Tornar</a>
+</header>
+<div class="stage">
+  <div id="map"></div>
+  <div class="hint" id="hint">Passa el cursor per veure coordenades · clic en una província/meetup</div>
+  <div id="inscribe">
+    <span>Vols inscriure el teu meetup?</span>
+    <code id="email">kilombino@proton.me</code>
+    <button id="copyEmail">📋 Copiar email</button>
+  </div>
+</div>
+<div id="cursorCoords">📍 <b>—</b></div>
+
+<div class="mu-overlay" id="muModal">
+  <div class="mu-card">
+    <button class="mu-close" id="muClose">✕</button>
+    <div id="muContent"></div>
+  </div>
+</div>
+
+<div class="mu-overlay" id="calModal">
+  <div class="mu-card">
+    <button class="mu-close" id="calClose">✕</button>
+    <div class="mu-body"><h2>📅 Propers meetups</h2><div id="calList"></div></div>
+  </div>
+</div>
+
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script>
+(async function () {
+  const CC = document.getElementById('cursorCoords'), CCb = CC.querySelector('b');
+  function cursor(e){ const ev=e.originalEvent; CC.style.left=ev.clientX+'px'; CC.style.top=ev.clientY+'px';
+    CC.style.display='block'; CCb.textContent=e.latlng.lat.toFixed(4)+', '+e.latlng.lng.toFixed(4); }
+  const hideCursor=()=>{ CC.style.display='none'; };
+  function esc(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  let spain, data;
+  try {
+    [spain, data] = await Promise.all([
+      (await fetch('/zones-geo.json')).json(),
+      (await fetch('/meetups.json')).json(),
+    ]);
+  } catch(e){ document.getElementById('map').textContent="No s'ha pogut carregar el mapa"; return; }
+
+  // ---- point-in-polygon (ray casting) to find provinces with meetups ----
+  function inRing(pt, ring){ let x=pt[0],y=pt[1],inside=false;
+    for(let i=0,j=ring.length-1;i<ring.length;j=i++){ const xi=ring[i][0],yi=ring[i][1],xj=ring[j][0],yj=ring[j][1];
+      if(((yi>y)!=(yj>y)) && (x<(xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside; } return inside; }
+  function inFeature(pt, f){ const g=f.geometry; const polys=g.type==='Polygon'?[g.coordinates]:g.coordinates;
+    return polys.some(poly=>inRing(pt, poly[0])); }
+  const provMeetups = new Map(); // province name -> [meetups]
+  spain.spain.features.forEach(f=>{
+    const list = data.meetups.filter(m=>inFeature([m.lng,m.lat], f));
+    if(list.length) provMeetups.set(f.properties.name, list);
+  });
+
+  // ---- Modal ----
+  const modal = document.getElementById('muModal'), muContent = document.getElementById('muContent');
+  function closeModal(){ modal.classList.remove('show'); }
+  document.getElementById('muClose').addEventListener('click', closeModal);
+  modal.addEventListener('click', e=>{ if(e.target===modal) closeModal(); });
+
+  function contactHtml(c){
+    if(c.type==='telegram') return `<a class="mu-contact" href="${esc(c.url)}" target="_blank" rel="noopener"><img src="/icons/contact/telegram.png" alt="Telegram">Telegram <small>${esc(c.value)}</small></a>`;
+    if(c.type==='nostr') return `<button class="mu-contact" data-copy="${esc(c.copy||'')}"><span class="ic">🟣</span>Nostr <small>${esc(c.value)}</small></button>`;
+    if(c.type==='x') return `<a class="mu-contact" href="${esc(c.url)}" target="_blank" rel="noopener"><span class="ic">𝕏</span>X / Twitter <small>${esc(c.value)}</small></a>`;
+    if(c.type==='instagram') return `<a class="mu-contact" href="${esc(c.url)}" target="_blank" rel="noopener"><span class="ic">📸</span>Instagram <small>${esc(c.value)}</small></a>`;
+    return `<a class="mu-contact" href="${esc(c.url)}" target="_blank" rel="noopener"><span class="ic">🌐</span>${esc(c.value)}</a>`;
+  }
+  function showMeetup(m){
+    const btnLabel = m.trobades ? 'VEURE TROBADES ↗' : 'VEURE EN 2140meetups ↗';
+    muContent.innerHTML =
+      (m.image?`<img class="hero" src="${esc(m.image)}" alt="">`:'') +
+      `<div class="mu-body"><h2>${esc(m.name)}</h2>` +
+      (m.contacts||[]).map(contactHtml).join('') +
+      (m.url?`<a class="mu-2140" href="${esc(m.url)}" target="_blank" rel="noopener">${btnLabel}</a>`:'') +
+      `</div>`;
+    muContent.querySelectorAll('button[data-copy]').forEach(b=>b.addEventListener('click', async ()=>{
+      const v=b.getAttribute('data-copy'); if(!v) return;
+      try{ await navigator.clipboard.writeText(v); }catch(e){}
+      const small=b.querySelector('small'); const t=small.textContent; small.textContent='npub copiada ✓'; setTimeout(()=>small.textContent=t,1600);
+    }));
+    modal.classList.add('show');
+  }
+  function showProvince(name){
+    const list = provMeetups.get(name) || [];
+    if(list.length===1) return showMeetup(list[0]);
+    muContent.innerHTML = `<div class="mu-body"><h2>${esc(name)}</h2>`+
+      list.map((m,i)=>`<button class="mu-contact" data-i="${i}"><span class="ic">📍</span>${esc(m.name)}</button>`).join('')+`</div>`;
+    muContent.querySelectorAll('button[data-i]').forEach(b=>b.addEventListener('click',()=>showMeetup(list[+b.getAttribute('data-i')])));
+    modal.classList.add('show');
+  }
+
+  // ---- Map ----
+  const map = L.map('map', { zoomControl:true, attributionControl:false, zoomSnap:0.25, maxBoundsViscosity:0.9 });
+  // Dedicated top pane so the meetup dots always sit above the highlighted
+  // provinces and stay clickable by hand.
+  map.createPane('logos'); map.getPane('logos').style.zIndex = 450;
+  map.createPane('dots'); map.getPane('dots').style.zIndex = 650;
+  const bg = L.geoJSON(spain.spain, {
+    style: (f)=> provMeetups.has(f.properties.name)
+      ? { fillColor:'#7a3e08', fillOpacity:0.95, color:'#ffd9a8', weight:1.1, className:'prov-meet' }
+      : { fillColor:'#0f1a2e', fillOpacity:1, color:'#2a3f5e', weight:0.5 },
+    onEachFeature: (f, lyr)=>{
+      if(!provMeetups.has(f.properties.name)) return;
+      lyr.bindTooltip(f.properties.name, { sticky:true });
+      // NOTE: no bringToFront — it would lift the province fill above the coin
+      // mosaic and hide the logos on hover. The glow class is enough.
+      lyr.on('mouseover', ()=>{ lyr.setStyle({ weight:2.4, color:'#f7931a' });
+        const el=lyr.getElement&&lyr.getElement(); if(el) el.classList.add('prov-hover'); });
+      lyr.on('mouseout', ()=>{ lyr.setStyle({ weight:1, color:'#ffd9a8' });
+        const el=lyr.getElement&&lyr.getElement(); if(el) el.classList.remove('prov-hover'); });
+      lyr.on('click', ()=>showProvince(f.properties.name));
+    }
+  }).addTo(map);
+
+  const bounds = bg.getBounds();
+  map.fitBounds(bounds, { padding:[12,12] });
+  map.setMaxBounds(bounds.pad(0.12));
+  map.setMinZoom(map.getZoom());
+  map.setMaxZoom(map.getZoom() + 6);
+  map.on('mousemove', cursor); map.on('mouseout', hideCursor);
+
+  // Bitcoin coin clipped strictly INSIDE each province with meetups, in the
+  // background (low opacity). We reuse Leaflet's own province <path> as the
+  // clipPath (via <use>), so the logo never crosses the border and follows it
+  // on zoom. SVG <pattern> fills don't render in Leaflet; this does.
+  const svgEl = map.getPanes().overlayPane.querySelector('svg');
+  const gEl = svgEl && svgEl.querySelector('g');
+  const NS='http://www.w3.org/2000/svg', XL='http://www.w3.org/1999/xlink';
+  function bboxOf(f){ let mnx=999,mny=999,mxx=-999,mxy=-999;
+    const sc=a=>{ if(typeof a[0]==='number'){ if(a[0]<mnx)mnx=a[0]; if(a[0]>mxx)mxx=a[0]; if(a[1]<mny)mny=a[1]; if(a[1]>mxy)mxy=a[1]; } else a.forEach(sc); };
+    sc(f.geometry.coordinates); return [mnx,mny,mxx,mxy]; }
+  // Grid of coin logos at FIXED geographic positions (lat/lng). Count never
+  // changes; on zoom we only reposition+resize them (they grow on zoom-in,
+  // shrink on zoom-out) instead of regenerating — much lighter.
+  const STEP_DEG=0.38, TILE_DEG=0.52;   // grid step and logo size, in degrees
+  const logoImgs=[]; // {img, lat, lng}
+  if (svgEl && gEl) {
+    let n=0;
+    bg.eachLayer(l=>{
+      if(!(l.feature && provMeetups.has(l.feature.properties.name))) return;
+      const path=l.getElement(); if(!path) return;
+      n++; const pid='pp'+n, cid='cp'+n;
+      path.setAttribute('id', pid);
+      const clip=document.createElementNS(NS,'clipPath');
+      clip.setAttribute('id', cid); clip.setAttribute('clipPathUnits','userSpaceOnUse');
+      const use=document.createElementNS(NS,'use');
+      use.setAttribute('href','#'+pid); use.setAttributeNS(XL,'href','#'+pid);
+      clip.appendChild(use); svgEl.appendChild(clip);
+      const grp=document.createElementNS(NS,'g');
+      grp.setAttribute('clip-path','url(#'+cid+')'); grp.setAttribute('opacity','0.45'); grp.style.pointerEvents='none';
+      gEl.appendChild(grp);
+      const [mnx,mny,mxx,mxy]=bboxOf(l.feature);
+      for(let la=mny; la<=mxy+STEP_DEG; la+=STEP_DEG) for(let lo=mnx; lo<=mxx+STEP_DEG; lo+=STEP_DEG){
+        const im=document.createElementNS(NS,'image');
+        im.setAttribute('href','/icons/bitcoin-coin.png'); im.setAttributeNS(XL,'href','/icons/bitcoin-coin.png');
+        grp.appendChild(im);
+        logoImgs.push({ img:im, lat:la, lng:lo });
+      }
+    });
+  }
+  function placeLogos(){
+    if(!logoImgs.length) return;
+    const a=map.latLngToLayerPoint([40,0]), b=map.latLngToLayerPoint([40,TILE_DEG]);
+    const size=Math.max(6, Math.abs(b.x-a.x));
+    logoImgs.forEach(({img,lat,lng})=>{
+      const p=map.latLngToLayerPoint([lat,lng]);
+      img.setAttribute('x', p.x-size/2); img.setAttribute('y', p.y-size/2);
+      img.setAttribute('width', size); img.setAttribute('height', size);
+    });
+  }
+  placeLogos();
+  map.on('zoomend moveend viewreset', placeLogos);
+
+  // Black exact-location dots, on the top pane so they overlay the highlighted
+  // provinces and can be picked by hand.
+  data.meetups.forEach(m=>{
+    const dot = L.circleMarker([m.lat,m.lng], { pane:'dots', radius:5.5, color:'#fff', weight:1.5,
+      fillColor:'#0a0a0a', fillOpacity:1, className:'meetup-dot' }).addTo(map);
+    dot.bindTooltip(m.name, { direction:'top', opacity:1 });
+    dot.on('mouseover', ()=>dot.setStyle({ radius:8, color:'#f7931a', weight:2.5 }));
+    dot.on('mouseout', ()=>dot.setStyle({ radius:5.5, color:'#fff', weight:1.5 }));
+    dot.on('click', ()=>showMeetup(m));
+  });
+
+  // ---- Calendar (próximos meetups) ----
+  const calModal = document.getElementById('calModal');
+  const closeCal = ()=>calModal.classList.remove('show');
+  document.getElementById('calClose').addEventListener('click', closeCal);
+  calModal.addEventListener('click', e=>{ if(e.target===calModal) closeCal(); });
+  document.getElementById('calBtn').addEventListener('click', async ()=>{
+    let ev=[];
+    try{ ev=((await (await fetch('/meetups-events.json')).json()).events)||[]; }catch(e){}
+    const today=new Date().toISOString().slice(0,10);
+    ev=ev.filter(e=>e.date && e.date>=today).sort((a,b)=>a.date.localeCompare(b.date));
+    const M=['gen','feb','març','abr','maig','juny','jul','ag','set','oct','nov','des'];
+    document.getElementById('calList').innerHTML = ev.length ? ev.map(e=>{
+      const d=new Date(e.date+'T00:00:00'); const ds=d.getDate()+' '+M[d.getMonth()]+' '+d.getFullYear();
+      return `<a class="mu-contact" href="${esc(e.url||'#')}" target="_blank" rel="noopener"><span class="ic">📅</span><div><b>${esc(e.name)}</b>${e.city?' · '+esc(e.city):''}<br><small>${ds}${e.time?' · '+esc(e.time):''}${e.title?' — '+esc(e.title):''}</small>${e.location?'<br><small>📍 '+esc(e.location)+'</small>':''}</div></a>`;
+    }).join('') : '<p style="color:var(--muted)">De moment no hi ha propers meetups programats.</p>';
+    calModal.classList.add('show');
+  });
+
+  document.getElementById('copyEmail').addEventListener('click', async ()=>{
+    const email=document.getElementById('email').textContent;
+    try{ await navigator.clipboard.writeText(email); }catch(e){}
+    const b=document.getElementById('copyEmail'); const t=b.textContent; b.textContent='✓ Copiat!'; setTimeout(()=>b.textContent=t,1500);
+  });
+})();
+</script>
+</body>
+</html>

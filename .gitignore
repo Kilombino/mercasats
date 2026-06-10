@@ -8,3 +8,14 @@ photos/
 *.db-wal
 .env
 .nostr-key
+.nwc.env
+# data, backups and local state — never publish (repo is public)
+data/
+*.bak
+*.bak-*
+.scraper-offset
+# monitor/one-off scripts that hold secrets (NWC strings, bot token, nsec)
+nwc-monitor.js
+zap-announcer.js
+retrofit-npubs.js
+blossom-upload.js

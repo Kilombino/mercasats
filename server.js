@@ -38,6 +38,9 @@ const FORCED_SELLER_REGIONS = {
   kilombino: 'baixllobregat',
   eznomada: 'galicia',
   bebop2077: 'penedes',
+  androdebian: 'valles',
+  aledaje: 'maresme',
+  morwapo: 'baixllobregat',
 };
 
 function forcedRegionForSeller(sellerTelegram) {
@@ -48,6 +51,18 @@ function forcedRegionForSeller(sellerTelegram) {
 
 const app = express();
 const PORT = 3102;
+
+// Advertise the .onion mirror to Tor Browser via Onion-Location.
+// Tor Browser only honors the header on HTTPS, so the clearnet (HTTPS via
+// Caddy) lights up the ".onion available" prompt while requests that
+// already arrive on the .onion are skipped.
+const ONION_HOST = 'mercasat3yhtc5gadhlnrwrgcebnh6fk6qe7zntdagxsmhlymdryiiid.onion';
+app.use((req, res, next) => {
+  if (req.headers.host !== ONION_HOST) {
+    res.setHeader('Onion-Location', `http://${ONION_HOST}${req.originalUrl}`);
+  }
+  next();
+});
 
 app.use(express.json({ limit: '5mb' }));
 
@@ -62,6 +77,11 @@ app.get('/amber-callback', (req, res) => {
 app.use(express.static(path.join(__dirname, 'public'), { dotfiles: 'allow' }));
 app.use('/photos', express.static(path.join(__dirname, 'photos')));
 
+// Zones map gets its own URL.
+app.get('/zones', (req, res) => res.sendFile(path.join(__dirname, 'public', 'zones.html')));
+// Meetups map gets its own URL.
+app.get('/meetups', (req, res) => res.sendFile(path.join(__dirname, 'public', 'meetups.html')));
+
 // --- Photo upload ---
 const multer = require('multer');
 const photoStorage = multer.diskStorage({
@@ -73,16 +93,22 @@ const photoStorage = multer.diskStorage({
 });
 const upload = multer({
   storage: photoStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB (Telegram sendPhoto URL limit)
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
     else cb(new Error('Solo se permiten imágenes'));
   }
 });
 
+const { generateThumbAsync } = require('./thumb');
+
 app.post('/api/upload-photo', upload.single('photo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file' });
-  res.json({ url: `/photos/${req.file.filename}` });
+  const localPath = `/photos/${req.file.filename}`;
+  generateThumbAsync(localPath);
+  // Return an ABSOLUTE URL: the app/web put this exact string into the signed
+  // Nostr event, and a relative path doesn't load in Nostr clients.
+  res.json({ url: `https://mercasats.kilombino.com${localPath}` });
 });
 
 // CORS + Security Headers
@@ -112,23 +138,59 @@ const TG_CAPTION_LIMIT = 1024;
 // sends a single photo message. If it overflows, sends a short summary caption
 // on the photo and a follow-up text reply with the full body. Returns
 // { messageId, longMessageId } — longMessageId is null when a single message
-// was enough.
-async function sendTelegramAnnounce(text, photoUrl, summary) {
+// was enough. `opts.replyToMessageId` quote-replies to an existing message
+// (used by the reservation flow to thread under the original product post).
+async function sendTelegramAnnounce(text, photoUrlOrList, summary, opts = {}) {
   if (!process.env.TG_BOT_TOKEN) return { messageId: null, longMessageId: null };
 
-  const usePhoto = !!photoUrl;
+  // Accept either a single URL (legacy callers) or an array of URLs (new
+  // multi-photo flow). Telegram media groups accept 2..10 photos; beyond that
+  // we truncate.
+  const photoList = Array.isArray(photoUrlOrList)
+    ? photoUrlOrList.filter(Boolean).slice(0, 10)
+    : (photoUrlOrList ? [photoUrlOrList] : []);
+  const usePhoto = photoList.length > 0;
+  const useAlbum = photoList.length > 1;
   const fitsInOne = text.length <= TG_CAPTION_LIMIT;
+  const replyParams = opts.replyToMessageId
+    ? { reply_parameters: { message_id: Number(opts.replyToMessageId), allow_sending_without_reply: true } }
+    : {};
 
   if (!usePhoto) {
     const r = await tgApi('sendMessage', {
-      chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, text, parse_mode: 'MarkdownV2',
+      chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, text, parse_mode: 'MarkdownV2', ...replyParams,
     });
     return { messageId: r.ok ? r.result.message_id : null, longMessageId: null };
   }
 
+  if (useAlbum) {
+    // Album: caption goes on the first item. If overflow, first item gets the
+    // short summary and a follow-up text reply carries the full body.
+    const caption = fitsInOne ? text : (summary || text.slice(0, TG_CAPTION_LIMIT));
+    const media = photoList.map((url, i) => ({
+      type: 'photo',
+      media: url,
+      ...(i === 0 ? { caption, parse_mode: 'MarkdownV2' } : {}),
+    }));
+    const albumResp = await tgApi('sendMediaGroup', {
+      chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, media, ...replyParams,
+    });
+    if (!albumResp.ok || !albumResp.result?.length) return { messageId: null, longMessageId: null };
+    const firstId = albumResp.result[0].message_id;
+    if (fitsInOne) return { messageId: firstId, longMessageId: null };
+    const textResp = await tgApi('sendMessage', {
+      chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, text, parse_mode: 'MarkdownV2',
+      reply_parameters: { message_id: firstId },
+      link_preview_options: { is_disabled: true },
+    });
+    return { messageId: firstId, longMessageId: textResp.ok ? textResp.result.message_id : null };
+  }
+
+  const photoUrl = photoList[0];
+
   if (fitsInOne) {
     const r = await tgApi('sendPhoto', {
-      chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, photo: photoUrl, caption: text, parse_mode: 'MarkdownV2',
+      chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, photo: photoUrl, caption: text, parse_mode: 'MarkdownV2', ...replyParams,
     });
     return { messageId: r.ok ? r.result.message_id : null, longMessageId: null };
   }
@@ -136,7 +198,7 @@ async function sendTelegramAnnounce(text, photoUrl, summary) {
   // Overflow: short photo caption + reply with full body
   const photoResp = await tgApi('sendPhoto', {
     chat_id: TG_CHAT_ID, message_thread_id: TG_THREAD_ID, photo: photoUrl,
-    caption: (summary || text.slice(0, TG_CAPTION_LIMIT)), parse_mode: 'MarkdownV2',
+    caption: (summary || text.slice(0, TG_CAPTION_LIMIT)), parse_mode: 'MarkdownV2', ...replyParams,
   });
   if (!photoResp.ok) return { messageId: null, longMessageId: null };
   const photoId = photoResp.result.message_id;
@@ -151,11 +213,14 @@ async function sendTelegramAnnounce(text, photoUrl, summary) {
 // Call a Telegram bot-API method with automatic legacy-token fallback.
 // Old channel messages were posted by @ClawilomBot (TG_BOT_TOKEN_LEGACY) and can
 // only be edited/deleted by that bot. New posts use @MercasatsBot (TG_BOT_TOKEN).
+// Returns the last API response so callers can inspect `.description` on failure
+// (otherwise debugging "delete didn't happen" is guesswork).
 function tgApi(method, body, { tokensToTry } = {}) {
   const tokens = tokensToTry || [process.env.TG_BOT_TOKEN, process.env.TG_BOT_TOKEN_LEGACY].filter(Boolean);
   return new Promise(async (resolve) => {
     const https = require('https');
     const postData = JSON.stringify(body);
+    let lastResp = { ok: false, description: 'no tokens configured' };
     for (const token of tokens) {
       const resp = await new Promise((rs) => {
         const req = https.request({
@@ -166,20 +231,22 @@ function tgApi(method, body, { tokensToTry } = {}) {
         }, (res) => {
           let data = '';
           res.on('data', d => data += d);
-          res.on('end', () => { try { rs(JSON.parse(data)); } catch { rs({ ok:false }); } });
+          res.on('end', () => { try { rs(JSON.parse(data)); } catch { rs({ ok:false, description: 'invalid JSON' }); } });
         });
-        req.on('error', () => rs({ ok:false }));
+        req.on('error', (e) => rs({ ok:false, description: 'network: ' + e.message }));
         req.write(postData); req.end();
       });
+      lastResp = resp;
       if (resp && resp.ok) return resolve(resp);
     }
-    resolve({ ok:false });
+    resolve(lastResp);
   });
 }
 
-function deleteTelegramMessage(chatId, messageId) {
-  if (!chatId || !messageId) return Promise.resolve(false);
-  return tgApi('deleteMessage', { chat_id: chatId, message_id: Number(messageId) }).then(r => !!r.ok);
+async function deleteTelegramMessage(chatId, messageId) {
+  if (!chatId || !messageId) return { ok: false, description: 'missing chatId/messageId' };
+  const r = await tgApi('deleteMessage', { chat_id: chatId, message_id: Number(messageId) });
+  return r;
 }
 
 // --- Anti-spam: simple PoW challenge ---
@@ -212,7 +279,7 @@ function verifyPow(challenge, nonce, difficulty) {
 
 // List products (with optional filters)
 app.get('/api/products', (req, res) => {
-  const { region, category, search, limit = 50, offset = 0 } = req.query;
+  const { region, category, search, limit = 500, offset = 0 } = req.query;
   let query = 'SELECT * FROM products WHERE active = 1';
   const params = [];
 
@@ -254,8 +321,21 @@ app.get('/api/products/:id', (req, res) => {
 
 // Create product manually (requires PoW + Nostr signature)
 app.post('/api/products', async (req, res) => {
-  const { title, description, price, price_currency, region, category, photos, seller_telegram, challenge, nonce, signed_event } = req.body;
+  const { title, description, price, price_currency, region, category, photos, seller_telegram, challenge, nonce, signed_event, coords, shipping_option, shipping_price } = req.body;
   let { seller_npub } = req.body;
+
+  // Shipping: validated option + free text price (≤20 chars), only when shipping is offered.
+  const shipOpt = SHIPPING_OPTIONS.includes(shipping_option) ? shipping_option : 'no';
+  const shipPrice = (shipOpt !== 'no' && typeof shipping_price === 'string') ? shipping_price.trim().slice(0, 20) : '';
+
+  // Optional coordinates "lat,lng" picked on the zones map.
+  let coordsClean = null;
+  if (coords && typeof coords === 'string') {
+    const m = coords.split(',').map(s => parseFloat(s.trim()));
+    if (m.length === 2 && Number.isFinite(m[0]) && Number.isFinite(m[1]) && Math.abs(m[0]) <= 90 && Math.abs(m[1]) <= 180) {
+      coordsClean = m[0].toFixed(5) + ',' + m[1].toFixed(5);
+    }
+  }
 
   // Convert bech32 npub to hex if needed
   seller_npub = npubToHex(seller_npub);
@@ -285,11 +365,12 @@ app.post('/api/products', async (req, res) => {
     : null;
 
   const stmt = db.prepare(`
-    INSERT INTO products (title, description, price, price_currency, region, category, photos, seller_telegram, seller_npub, source, nostr_d_tag)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?)
+    INSERT INTO products (title, description, price, price_currency, region, category, photos, seller_telegram, seller_npub, source, nostr_d_tag, coords, shipping_option, shipping_price)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'manual', ?, ?, ?, ?)
   `);
 
-  const finalRegion = forcedRegionForSeller(seller_telegram) || region || null;
+  const hashtagRegion = detectHashtagRegion(`${title || ''} ${description || ''}`);
+  const finalRegion = hashtagRegion || forcedRegionForSeller(seller_telegram) || region || null;
 
   let finalPhotos = photos || [];
   if (finalPhotos.length === 0) {
@@ -301,7 +382,7 @@ app.post('/api/products', async (req, res) => {
     title, description || '', price, price_currency || 'sats',
     finalRegion, category || null, JSON.stringify(finalPhotos),
     seller_telegram || null, seller_npub || null,
-    dTagFromSig
+    dTagFromSig, coordsClean, shipOpt, shipPrice
   );
 
   const productId = result.lastInsertRowid;
@@ -323,7 +404,8 @@ app.post('/api/products', async (req, res) => {
     const nostrEventId = await publishProduct({
       id: productId, title, description, price, price_currency,
       seller_npub: seller_npub || null, seller_telegram: seller_telegram || null,
-      photos: finalPhotos, category, region
+      photos: finalPhotos, category, region, coords: coordsClean,
+      shipping_option: shipOpt, shipping_price: shipPrice
     }, signed_event, { noExpiration });
     if (nostrEventId) {
       db.prepare('UPDATE products SET nostr_event_id = ? WHERE id = ?').run(nostrEventId, productId);
@@ -336,14 +418,22 @@ app.post('/api/products', async (req, res) => {
     const catName = catObj?.name || category || '';
     const catEmoji = catObj?.emoji || '';
     const priceText = (price && !isNaN(Number(price))) ? price + (price_currency === 'EUR' ? '€' : ' sats') : (price || 'A consultar');
-    const tgUser = seller_telegram ? (seller_telegram.startsWith('@') ? seller_telegram : '@' + seller_telegram) : null;
-    const contact = tgUser || (seller_npub ? seller_npub.substring(0, 16) + '...' : '');
+    // Only treat seller_telegram as a clickable handle when it's a valid TG
+    // username; otherwise fall back to free text (escaped) — scraped sellers
+    // sometimes have things like "R.L. (buscar...)" that break MarkdownV2.
+    const cleanHandle = seller_telegram && /^@?[A-Za-z0-9_]{3,}$/.test(seller_telegram)
+      ? (seller_telegram.startsWith('@') ? seller_telegram : '@' + seller_telegram)
+      : null;
+    const tgUser = cleanHandle;
+    const contact = cleanHandle || seller_telegram || (seller_npub ? seller_npub.substring(0, 16) + '...' : '');
     // sendTelegramAnnounce handles the caption/text-message split automatically:
     // if the full body fits in 1024 chars, single photo+caption; otherwise the
     // photo gets a short summary caption and the full body goes in a text reply.
     const hasPhoto = finalPhotos && finalPhotos.length > 0;
     const desc = (description || '').substring(0, 3500);
-    const photoUrl = hasPhoto ? (finalPhotos[0].startsWith('http') ? finalPhotos[0] : `https://mercasats.kilombino.com${finalPhotos[0]}`) : null;
+    const photoUrls = hasPhoto
+      ? finalPhotos.map(p => p.startsWith('http') ? p : `https://mercasats.kilombino.com${p}`)
+      : null;
     const regionObj = region ? REGIONS.find(r => r.id === region) : null;
     const regionName = regionObj?.name || region || '';
     const regionEmoji = regionObj?.emoji || '';
@@ -351,14 +441,24 @@ app.post('/api/products', async (req, res) => {
     const tipoText = isCompra ? 'COMPRA' : 'VENDE';
     const productUrl = `https://mercasats.kilombino.com/?p=${productId}`;
     const productUrlLabel = `mercasats\\.kilombino\\.com/?p\\=${productId}`;
-    const text = `🛒 *\\#${tipoText}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}\n📝 *\\#DESCRIPCION* ${tgEscape(title)}\n${tgEscape(desc)}\n👤 ${tgUser ? tgUser : tgEscape(contact)}\n\n🔗 [${productUrlLabel}](${productUrl})`;
+    // Show the seller's npub (bech32) in monospace so it can be copied easily.
+    const sellerNpubBech = seller_npub ? hexToNpub(seller_npub) : null;
+    const npubLine = sellerNpubBech ? `\n🔑 \`${sellerNpubBech}\`` : '';
+    // Optional coordinates picked on the zones map: monospace value + OSM link.
+    let coordsLine = '';
+    if (coordsClean) {
+      const [clat, clng] = coordsClean.split(',');
+      coordsLine = `\n📍 \`${coordsClean}\` · [mapa](https://www.openstreetmap.org/?mlat=${clat}&mlon=${clng}#map=13/${clat}/${clng})`;
+    }
+    const shipLine = shipOpt !== 'no' ? `\n📦 *\\#ENVIOS* ${tgEscape(shippingText(shipOpt, shipPrice))}` : '';
+    const text = `🛒 *\\#${tipoText}* *${tgEscape(title)}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}${shipLine}\n📝 *\\#DESCRIPCION*\n${tgEscape(desc)}\n👤 ${tgEscape(tgUser || contact)}${npubLine}${coordsLine}\n\n🔗 [${productUrlLabel}](${productUrl})`;
     const summary = `🛒 *\\#${tipoText}* \\| 💰${tgEscape(priceText)} \\| ${regionEmoji}${tgEscape(regionName || 'Sense zona')}\n📝 *${tgEscape(title)}*\n\n👇 Descripció completa abaix\n🔗 [${productUrlLabel}](${productUrl})`;
 
-    let res1 = await sendTelegramAnnounce(text, photoUrl, summary);
+    let res1 = await sendTelegramAnnounce(text, photoUrls, summary);
     if (!res1.messageId) {
       console.log('[TG] First announce attempt failed, retrying in 3s...');
       await new Promise(r => setTimeout(r, 3000));
-      res1 = await sendTelegramAnnounce(text, photoUrl, summary);
+      res1 = await sendTelegramAnnounce(text, photoUrls, summary);
     }
     if (res1.messageId) {
       db.prepare('UPDATE products SET telegram_message_id = ?, telegram_long_message_id = ?, telegram_chat_id = ? WHERE id = ?')
@@ -372,20 +472,36 @@ app.post('/api/products', async (req, res) => {
 });
 
 const CATEGORIES = [
-  { id: 'informatica', name: 'Informàtica' },
-  { id: 'bitcoin', name: 'Bitcoin & Hardware' },
-  { id: 'energia', name: 'Energia Solar' },
-  { id: 'alimentacio', name: 'Alimentació' },
-  { id: 'roba', name: 'Roba' },
-  { id: 'complements', name: 'Complements' },
-  { id: 'gaming', name: 'Gaming & Jocs' },
-  { id: 'finances', name: 'Monedes & Divises' },
-  { id: 'serveis', name: 'Serveis' },
-  { id: 'vehicle', name: 'Vehicle & Motor' },
-  { id: 'esport', name: 'Esport & Salut' },
-  { id: 'llar', name: 'Llar & Immoble' },
-  { id: 'altres', name: 'Altres' },
+  { id: 'informatica', name: 'Informàtica', emoji: '💻' },
+  { id: 'bitcoin', name: 'Bitcoin & Hardware', emoji: '🔐' },
+  { id: 'energia', name: 'Energia Solar', emoji: '☀️' },
+  { id: 'alimentacio', name: 'Alimentació', emoji: '🍊' },
+  { id: 'roba', name: 'Roba', emoji: '👕' },
+  { id: 'complements', name: 'Complements', emoji: '⌚' },
+  { id: 'gaming', name: 'Gaming & Jocs', emoji: '🎮' },
+  { id: 'finances', name: 'Monedes & Divises', emoji: '🪙' },
+  { id: 'serveis', name: 'Serveis', emoji: '🔧' },
+  { id: 'vehicle', name: 'Vehicle & Motor', emoji: '🚗' },
+  { id: 'esport', name: 'Esport & Salut', emoji: '💪' },
+  { id: 'llar', name: 'Llar & Immoble', emoji: '🏠' },
+  { id: 'mobils', name: 'Mòbils & Tauletes', emoji: '📱' },
+  { id: 'eines', name: 'Eines & Bricolatge', emoji: '🛠️' },
+  { id: 'art', name: 'Art', emoji: '🎨' },
+  { id: 'p2p', name: 'P2P', emoji: '💶' },
+  { id: 'llibres', name: 'Llibres', emoji: '📚' },
+  { id: 'altres', name: 'Altres', emoji: '📦' },
 ];
+
+// Shipping options for listings.
+const SHIPPING_OPTIONS = ['no', 'inclos', 'peninsula', 'peninsula_illes', 'internacional'];
+const SHIPPING_LABELS = {
+  no: 'No disponibles', inclos: 'Incluidos en el precio', peninsula: 'Solo península',
+  peninsula_illes: 'Península e islas', internacional: 'Internacional',
+};
+function shippingText(opt, price) {
+  if (!opt || opt === 'no') return '';
+  return (SHIPPING_LABELS[opt] || opt) + (price ? ' ' + price : '');
+}
 
 const REGIONS = [
   { id: 'barcelona', name: 'Barcelona', emoji: '🏛️' },
@@ -633,7 +749,11 @@ app.post('/api/internal/product', async (req, res) => {
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'telegram', ?, ?)
   `);
 
-  const finalRegion = forcedRegionForSeller(seller_telegram) || region || null;
+  // Hashtag-driven event region (e.g. #BCC, #BCC26) wins over forced-seller
+  // region: a Kilombino post tagged #BCC at the camp belongs in BCC26, not in
+  // his usual baixllobregat zone.
+  const hashtagRegion = detectHashtagRegion(`${title || ''} ${description || ''}`);
+  const finalRegion = hashtagRegion || forcedRegionForSeller(seller_telegram) || region || null;
 
   let finalPhotos = photos || [];
   if (finalPhotos.length === 0) {
@@ -669,6 +789,15 @@ app.post('/api/internal/product', async (req, res) => {
 });
 
 // --- Categories list ---
+app.get('/api/suggest-photo', (req, res) => {
+  const photo = pickPhotoForProduct({
+    title: req.query.title || '',
+    description: req.query.description || '',
+    category: req.query.category || null
+  });
+  res.json({ photo: photo || null });
+});
+
 app.get('/api/categories', (req, res) => {
   const categories = [
     { id: 'informatica', name: 'Informàtica', emoji: '💻' },
@@ -684,6 +813,10 @@ app.get('/api/categories', (req, res) => {
     { id: 'esport', name: 'Esport & Salut', emoji: '💪' },
     { id: 'llar', name: 'Llar & Immoble', emoji: '🏠' },
     { id: 'mobils', name: 'Mòbils & Tauletes', emoji: '📱' },
+    { id: 'eines', name: 'Eines & Bricolatge', emoji: '🛠️' },
+    { id: 'art', name: 'Art', emoji: '🎨' },
+    { id: 'p2p', name: 'P2P', emoji: '💶' },
+    { id: 'llibres', name: 'Llibres', emoji: '📚' },
     { id: 'altres', name: 'Altres', emoji: '📦' },
   ];
 
@@ -700,8 +833,11 @@ app.get('/api/categories', (req, res) => {
 });
 
 // --- Regions list (kept for location info) ---
+// Regions can carry an `icon_url` for clients that prefer an image badge over
+// the emoji fallback (e.g. event-specific zones like the BCC camp logo).
 app.get('/api/regions', (req, res) => {
   const regions = [
+    { id: 'bcc26', name: 'BCC26', emoji: '🥷', icon_url: '/icons/bcc26.jpg' },
     { id: 'barcelona', name: 'Barcelona', emoji: '🏛️' },
     { id: 'maresme', name: 'Maresme', emoji: '🚢' },
     { id: 'valles', name: 'Vallès', emoji: '🚂' },
@@ -720,6 +856,44 @@ app.get('/api/regions', (req, res) => {
   ];
   res.json(regions);
 });
+
+// Detect hashtag-driven event regions in user-supplied text (title/description).
+// #BCC and #BCC26 → bcc26. Returns the region id or null. Case-insensitive,
+// requires word boundary so it doesn't trigger inside arbitrary substrings.
+const NODE_REGION_KEYWORDS = {
+  'barcelona': 'barcelona', 'bcn': 'barcelona',
+  'maresme': 'maresme', 'mataró': 'maresme', 'mataro': 'maresme',
+  'vallès': 'valles', 'valles': 'valles', 'sabadell': 'valles', 'terrassa': 'valles',
+  'osona': 'osona', 'vic': 'osona',
+  'girona': 'girona',
+  'empordà': 'emporda', 'emporda': 'emporda', 'figueres': 'emporda',
+  'tarragona': 'tarragona', 'reus': 'tarragona',
+  'baixllobregat': 'baixllobregat', 'cornellà': 'baixllobregat', 'cornella': 'baixllobregat',
+  'prat': 'baixllobregat', 'sant boi': 'baixllobregat', 'sant feliu': 'baixllobregat',
+  'garraf': 'garraf', 'sitges': 'garraf', 'vilanova': 'garraf',
+  'penedès': 'penedes', 'penedes': 'penedes', 'vilafranca': 'penedes',
+  'lleida': 'lleida',
+  'zaragoza': 'zaragoza', 'zgz': 'zaragoza', 'saragossa': 'zaragoza',
+  'galicia': 'galicia', 'galiza': 'galicia',
+  'tenerife': 'tenerife',
+};
+
+function detectHashtagRegion(text) {
+  if (!text) return null;
+  const t = String(text);
+  if (/(?:^|[^A-Za-z0-9])#BCC(?:26)?\b/i.test(t)) return 'bcc26';
+  // Explicit "#node Barcelona" / "nodo Maresme" zone declaration. This is an
+  // explicit user intent and outranks forcedRegionForSeller.
+  const nodeMatch = t.match(/#?(?:node|nodo)[ \t]+([A-Za-zÀ-ÿ][A-Za-zÀ-ÿ \t]{0,30})/i);
+  if (nodeMatch) {
+    const candidate = nodeMatch[1].trim().toLowerCase().replace(/\s+/g, ' ');
+    return NODE_REGION_KEYWORDS[candidate]
+      || NODE_REGION_KEYWORDS[candidate.replace(/\s+/g, '')]
+      || NODE_REGION_KEYWORDS[candidate.split(/\s+/)[0]]
+      || null;
+  }
+  return null;
+}
 
 // --- Product sold status ---
 app.get('/api/products/:id/status', (req, res) => {
@@ -750,11 +924,33 @@ app.post('/api/products/:id/reserve', async (req, res) => {
   db.prepare("UPDATE products SET reserved = 1, reserved_by = ?, reserved_at = datetime('now'), updated_at = datetime('now') WHERE id = ?")
     .run(reserved_by, req.params.id);
 
-  // Notify on Telegram
+  // Notify on Telegram. Quote-reply to the original product post when we have
+  // its message_id, attach the product photo, and store the resulting message_id
+  // so we can edit/delete the reserve message later (unreserve, sold, delete).
   try {
     const priceText = product.price + (product.price_currency === 'EUR' ? '€' : ' sats');
-    const text = `🔒 *Reservat\\!*\n\n*${tgEscape(product.title)}*\n💰 ${tgEscape(priceText)}\n\n📌 Reservat per: ${tgEscape(reserved_by)}\n👤 Venedor: ${product.seller_telegram || tgEscape((product.seller_npub || '').substring(0, 16))}\n\n🔗 [mercasats\\.kilombino\\.com](https://mercasats.kilombino.com)`;
-    await sendTelegramAnnounce(text, null);
+    const tgUser = product.seller_telegram
+      ? (product.seller_telegram.startsWith('@') ? product.seller_telegram : '@' + product.seller_telegram)
+      : null;
+    const sellerLine = tgUser
+      ? tgEscape(tgUser)
+      : tgEscape((product.seller_npub || '').substring(0, 16));
+    const productUrl = `https://mercasats.kilombino.com/?p=${product.id}`;
+    const productUrlLabel = `mercasats\\.kilombino\\.com/?p\\=${product.id}`;
+    const text = `🔒 *Reservat\\!*\n\n*${tgEscape(product.title)}*\n💰 ${tgEscape(priceText)}\n\n📌 Reservat per: ${tgEscape(reserved_by)}\n👤 Venedor: ${sellerLine}\n\n🔗 [${productUrlLabel}](${productUrl})`;
+
+    let photos = [];
+    try { photos = JSON.parse(product.photos || '[]'); } catch {}
+    const photoUrl = photos.length > 0
+      ? (photos[0].startsWith('http') ? photos[0] : `https://mercasats.kilombino.com${photos[0]}`)
+      : null;
+
+    const opts = product.telegram_message_id ? { replyToMessageId: product.telegram_message_id } : {};
+    const announceRes = await sendTelegramAnnounce(text, photoUrl, null, opts);
+    if (announceRes.messageId) {
+      db.prepare('UPDATE products SET telegram_reserve_message_id = ? WHERE id = ?')
+        .run(String(announceRes.messageId), product.id);
+    }
   } catch(e) { console.error('TG reserve announce error:', e); }
 
   // Notify on Nostr
@@ -775,12 +971,21 @@ app.post('/api/products/:id/reserve', async (req, res) => {
 });
 
 // --- Unreserve product ---
-app.post('/api/products/:id/unreserve', (req, res) => {
+app.post('/api/products/:id/unreserve', async (req, res) => {
   const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(req.params.id);
   if (!product) return res.status(404).json({ error: 'Not found' });
 
-  db.prepare("UPDATE products SET reserved = 0, reserved_by = NULL, reserved_at = NULL, updated_at = datetime('now') WHERE id = ?")
+  db.prepare("UPDATE products SET reserved = 0, reserved_by = NULL, reserved_at = NULL, telegram_reserve_message_id = NULL, updated_at = datetime('now') WHERE id = ?")
     .run(req.params.id);
+
+  // Clean up the reservation announcement in Telegram so the channel doesn't
+  // keep showing a stale "🔒 Reservat" message after the seller cancels.
+  if (product.telegram_reserve_message_id && product.telegram_chat_id) {
+    try {
+      const r = await deleteTelegramMessage(product.telegram_chat_id, product.telegram_reserve_message_id);
+      console.log(`[Unreserve] TG reserve ${product.telegram_reserve_message_id}: ${r.ok ? 'OK' : 'FAIL — ' + (r.description || 'unknown')}`);
+    } catch(e) { console.error('[Unreserve] TG delete error:', e.message); }
+  }
 
   res.json({ ok: true, reserved: false });
 });
@@ -804,17 +1009,25 @@ app.delete('/api/products/:id', async (req, res) => {
   db.prepare("UPDATE products SET active = 0, removal_reason = ?, updated_at = datetime('now') WHERE id = ?")
     .run('Eliminat pel venedor des de la web', req.params.id);
 
-  // 2. Delete from Telegram (photo + optional long-text reply)
+  // 2. Delete from Telegram (photo + optional long-text reply + reserve note).
+  // Log the actual API response so failures don't masquerade as successes.
   if (product.telegram_message_id && product.telegram_chat_id) {
     try {
-      await deleteTelegramMessage(product.telegram_chat_id, product.telegram_message_id);
+      const r1 = await deleteTelegramMessage(product.telegram_chat_id, product.telegram_message_id);
+      console.log(`[Delete] TG message ${product.telegram_message_id}: ${r1.ok ? 'OK' : 'FAIL — ' + (r1.description || 'unknown')}`);
       if (product.telegram_long_message_id) {
-        await deleteTelegramMessage(product.telegram_chat_id, product.telegram_long_message_id);
+        const r2 = await deleteTelegramMessage(product.telegram_chat_id, product.telegram_long_message_id);
+        console.log(`[Delete] TG long message ${product.telegram_long_message_id}: ${r2.ok ? 'OK' : 'FAIL — ' + (r2.description || 'unknown')}`);
       }
-      console.log(`[Delete] TG message ${product.telegram_message_id} deleted`);
     } catch(e) {
       console.error('[Delete] TG delete error:', e.message);
     }
+  }
+  if (product.telegram_reserve_message_id && product.telegram_chat_id) {
+    try {
+      const r3 = await deleteTelegramMessage(product.telegram_chat_id, product.telegram_reserve_message_id);
+      console.log(`[Delete] TG reserve ${product.telegram_reserve_message_id}: ${r3.ok ? 'OK' : 'FAIL — ' + (r3.description || 'unknown')}`);
+    } catch(e) { console.error('[Delete] TG reserve delete error:', e.message); }
   }
 
   // 2b. Announce deletion in Telegram topic
@@ -837,10 +1050,10 @@ app.delete('/api/products/:id', async (req, res) => {
 
 // --- Edit product (owner only, requires signed event) ---
 const editCooldown = new Map();
-const EDIT_MIN_INTERVAL_MS = 30_000;
+const EDIT_MIN_INTERVAL_MS = 8_000;
 
 app.put('/api/products/:id', async (req, res) => {
-  const { signed_event, title, description, price, price_currency, region, category } = req.body;
+  const { signed_event, title, description, price, price_currency, region, category, shipping_option, shipping_price } = req.body;
 
   const product = db.prepare('SELECT * FROM products WHERE id = ?').get(req.params.id);
   if (!product) return res.status(404).json({ error: 'Not found' });
@@ -871,8 +1084,11 @@ app.put('/api/products/:id', async (req, res) => {
   const newRegion = (region === null || typeof region === 'string') ? region : product.region;
   const newCategory = (category === null || typeof category === 'string') ? category : product.category;
 
-  db.prepare(`UPDATE products SET title = ?, description = ?, price = ?, price_currency = ?, region = ?, category = ?, updated_at = datetime('now') WHERE id = ?`)
-    .run(newTitle, newDesc, newPrice, newCurrency, newRegion, newCategory, req.params.id);
+  const newShipOpt = SHIPPING_OPTIONS.includes(shipping_option) ? shipping_option : (product.shipping_option || 'no');
+  const newShipPrice = newShipOpt !== 'no' ? ((typeof shipping_price === 'string' ? shipping_price.trim().slice(0, 20) : '') || '') : '';
+
+  db.prepare(`UPDATE products SET title = ?, description = ?, price = ?, price_currency = ?, region = ?, category = ?, shipping_option = ?, shipping_price = ?, updated_at = datetime('now') WHERE id = ?`)
+    .run(newTitle, newDesc, newPrice, newCurrency, newRegion, newCategory, newShipOpt, newShipPrice, req.params.id);
 
   // Update expires_at based on the signed edit event's expiration tag (or absence thereof)
   const editExpTag = Array.isArray(signed_event?.tags) ? signed_event.tags.find(t => t[0] === 'expiration') : null;
@@ -894,6 +1110,7 @@ app.put('/api/products/:id', async (req, res) => {
       price: updated.price, price_currency: updated.price_currency,
       seller_npub: updated.seller_npub, seller_telegram: updated.seller_telegram,
       photos: parsedPhotos, category: updated.category, region: updated.region,
+      shipping_option: updated.shipping_option, shipping_price: updated.shipping_price,
     }, signed_event, { noExpiration: editNoExpiration });
     if (nostrEventId) {
       db.prepare('UPDATE products SET nostr_event_id = ? WHERE id = ?').run(nostrEventId, updated.id);
@@ -905,10 +1122,13 @@ app.put('/api/products/:id', async (req, res) => {
     try {
       const catObj = updated.category ? CATEGORIES.find(c => c.id === updated.category) : null;
       const catName = catObj?.name || updated.category || '';
-      const catEmoji = '';
+      const catEmoji = catObj?.emoji || '';
       const priceText = (updated.price && !isNaN(Number(updated.price))) ? updated.price + (updated.price_currency === 'EUR' ? '€' : ' sats') : (updated.price || 'A consultar');
-      const tgUser = updated.seller_telegram ? (updated.seller_telegram.startsWith('@') ? updated.seller_telegram : '@' + updated.seller_telegram) : null;
-      const contact = tgUser || (updated.seller_npub ? updated.seller_npub.substring(0, 16) + '...' : '');
+      const cleanHandle = updated.seller_telegram && /^@?[A-Za-z0-9_]{3,}$/.test(updated.seller_telegram)
+        ? (updated.seller_telegram.startsWith('@') ? updated.seller_telegram : '@' + updated.seller_telegram)
+        : null;
+      const tgUser = cleanHandle;
+      const contact = cleanHandle || updated.seller_telegram || (updated.seller_npub ? updated.seller_npub.substring(0, 16) + '...' : '');
       const desc = (updated.description || '').substring(0, 3500);
       const regionObj = updated.region ? REGIONS.find(r => r.id === updated.region) : null;
       const regionName = regionObj?.name || updated.region || '';
@@ -917,7 +1137,8 @@ app.put('/api/products/:id', async (req, res) => {
       const tipoText = isCompra ? 'COMPRA' : 'VENDE';
       const productUrl = `https://mercasats.kilombino.com/?p=${updated.id}`;
       const productUrlLabel = `mercasats\\.kilombino\\.com/?p\\=${updated.id}`;
-      const fullBody = `🛒 *\\#${tipoText}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}\n📝 *\\#DESCRIPCION* ${tgEscape(updated.title)}\n${tgEscape(desc)}\n👤 ${tgUser ? tgUser : tgEscape(contact)}\n\n🔗 [${productUrlLabel}](${productUrl})`;
+      const shipLine = (updated.shipping_option && updated.shipping_option !== 'no') ? `\n📦 *\\#ENVIOS* ${tgEscape(shippingText(updated.shipping_option, updated.shipping_price))}` : '';
+      const fullBody = `🛒 *\\#${tipoText}* *${tgEscape(updated.title)}*\n📍 *\\#NODE* ${regionEmoji} ${tgEscape(regionName || 'Sense zona')}\n📂 *\\#CATEGORIA* ${catEmoji} ${tgEscape(catName || 'Sense categoria')}\n🪙 *\\#PRECIO* 💰${tgEscape(priceText)}${shipLine}\n📝 *\\#DESCRIPCION*\n${tgEscape(desc)}\n👤 ${tgEscape(tgUser || contact)}\n\n🔗 [${productUrlLabel}](${productUrl})`;
       const summary = `🛒 *\\#${tipoText}* \\| 💰${tgEscape(priceText)} \\| ${regionEmoji}${tgEscape(regionName || 'Sense zona')}\n📝 *${tgEscape(updated.title)}*\n\n👇 Descripció completa abaix\n🔗 [${productUrlLabel}](${productUrl})`;
 
       const hadLong = !!updated.telegram_long_message_id;
@@ -973,7 +1194,11 @@ app.put('/api/products/:id', async (req, res) => {
     } catch(e) { console.error('[Edit] TG edit error:', e.message); }
   }
 
-  res.json({ ok: true, product: updated });
+  // Return photos as an array (the app expects product.photos to be an array;
+  // the DB stores it as a JSON string) and the npub in bech32, like the GET.
+  let photosArr = [];
+  try { photosArr = JSON.parse(updated.photos || '[]'); } catch (e) {}
+  res.json({ ok: true, product: { ...updated, photos: photosArr, seller_npub: hexToNpub(updated.seller_npub) } });
 });
 
 // --- Internal photo update (called by telegram scraper for follow-up photos) ---
@@ -1006,13 +1231,25 @@ app.delete('/api/internal/product/:id', async (req, res) => {
     } catch(e) { console.error('[Internal Delete] Nostr error:', e.message); }
   }
 
+  // Clean up the reserve announcement if the original product was deleted
+  // from Telegram while still reserved.
+  if (product.telegram_reserve_message_id && product.telegram_chat_id) {
+    try {
+      const r = await deleteTelegramMessage(product.telegram_chat_id, product.telegram_reserve_message_id);
+      console.log(`[Internal Delete] TG reserve ${product.telegram_reserve_message_id}: ${r.ok ? 'OK' : 'FAIL — ' + (r.description || 'unknown')}`);
+    } catch(e) { console.error('[Internal Delete] TG reserve delete error:', e.message); }
+  }
+
   // Delete local photo if exists
   if (product.photos) {
     try {
       const photos = JSON.parse(product.photos);
       for (const p of photos) {
-        if (p.startsWith('/photos/')) {
-          const fullPath = path.join(__dirname, 'public', p);
+        // Accept both relative ("/photos/x") and absolute URLs.
+        let rel = p;
+        if (typeof p === 'string' && p.startsWith('http')) { try { rel = new URL(p).pathname; } catch (e) {} }
+        if (typeof rel === 'string' && rel.startsWith('/photos/')) {
+          const fullPath = path.join(__dirname, 'public', rel);
           if (fs.existsSync(fullPath)) fs.unlinkSync(fullPath);
         }
       }

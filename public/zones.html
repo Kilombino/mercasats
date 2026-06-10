@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>MercaSats · Zones</title>
+<link rel="icon" href="/favicon.ico">
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<style>
+  :root { --orange:#f7931a; --bg:#0a1426; --panel:#0c1830; --muted:#8aa0c0; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; height:100%; background:var(--bg); color:#fff;
+    font-family: 'Chakra Petch', system-ui, sans-serif; overflow:hidden; }
+  header { display:flex; align-items:center; gap:12px; padding:10px 16px;
+    border-bottom:1px solid rgba(247,147,26,0.25); background:var(--panel); }
+  header h1 { font-size:16px; margin:0; font-weight:800; letter-spacing:.5px; }
+  header .back { margin-left:auto; color:var(--orange); text-decoration:none; font-weight:700;
+    border:1px solid rgba(247,147,26,0.4); padding:5px 11px; border-radius:7px; font-size:13px; }
+  .stage { position:relative; height:calc(100vh - 49px); }
+  #map { position:absolute; inset:0; background:var(--bg); }
+  #cursorCoords { position:fixed; z-index:1200; pointer-events:none; display:none;
+    background:rgba(8,16,32,.9); border:1px solid rgba(247,147,26,0.5); border-radius:6px;
+    padding:3px 8px; font-size:12px; color:#cfe0ff; font-variant-numeric:tabular-nums;
+    transform:translate(14px, 14px); white-space:nowrap; }
+  #cursorCoords b { color:var(--orange); }
+  .hint { position:absolute; left:50%; top:10px; transform:translateX(-50%); z-index:600;
+    background:rgba(8,16,32,.82); border:1px solid rgba(247,147,26,0.25); border-radius:7px;
+    padding:6px 14px; font-size:13px; color:var(--muted); pointer-events:none; text-align:center; }
+  #pickBar { position:absolute; left:50%; bottom:14px; transform:translateX(-50%); z-index:700;
+    display:none; gap:10px; align-items:center; background:rgba(8,16,32,.92);
+    border:1px solid rgba(247,147,26,0.45); border-radius:9px; padding:8px 12px; }
+  #pickBar b { color:var(--orange); font-variant-numeric:tabular-nums; }
+  #pickBar button { background:var(--orange); color:#101010; border:0; font-weight:800;
+    padding:7px 14px; border-radius:7px; cursor:pointer; font-family:inherit; }
+  .leaflet-container { background:var(--bg); outline:none; }
+  /* 3D-ish lift: bright glow (illumination) + directional shadow (depth).
+     Applied via a JS-toggled class on the path so it survives zoom changes
+     (a plain :hover can drop during Leaflet's zoom re-render). NO transform
+     → the hit area never moves → no flicker between adjacent zones. */
+  path.zone-path { transition: filter .12s ease; cursor:pointer; }
+  path.zone-hover {
+    filter: brightness(1.4) saturate(1.35)
+            drop-shadow(0 9px 12px rgba(0,0,0,.8))
+            drop-shadow(0 0 11px rgba(247,147,26,.98));
+  }
+  .zone-name { background:transparent; border:0; box-shadow:none; color:#fff;
+    font-family:'Chakra Petch',sans-serif; font-weight:800; font-size:15px; letter-spacing:.5px;
+    text-transform:uppercase; text-shadow:0 0 4px #000,0 0 4px #000; padding:0; }
+  .zone-name::before { display:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🗺️ MercaSats · Zones</h1>
+  <a class="back" href="/" id="backLink">← Tornar</a>
+</header>
+<div class="stage">
+  <div id="map"></div>
+  <div class="hint" id="hint">Passa el cursor per veure coordenades · clic en una zona per filtrar</div>
+  <div id="pickBar">📍 <b id="pickVal">—</b> <button id="pickConfirm">Fer servir</button></div>
+</div>
+<div id="cursorCoords">📍 <b>—</b></div>
+
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script>
+(async function () {
+  const MODE = (new URLSearchParams(location.search).get('mode') || 'filter'); // 'filter' | 'pick'
+  const embedded = window.parent && window.parent !== window;
+  const CC = document.getElementById('cursorCoords');
+  const CCb = CC.querySelector('b');
+  const hint = document.getElementById('hint');
+  const pickBar = document.getElementById('pickBar');
+  const pickVal = document.getElementById('pickVal');
+  let picked = null, pickMarker = null;
+
+  if (MODE === 'pick') hint.textContent = 'Fes clic al mapa per triar les coordenades del teu anunci';
+
+  function cursor(e) {
+    const ev = e.originalEvent;
+    CC.style.left = ev.clientX + 'px'; CC.style.top = ev.clientY + 'px';
+    CC.style.display = 'block';
+    CCb.textContent = e.latlng.lat.toFixed(4) + ', ' + e.latlng.lng.toFixed(4);
+  }
+  const hideCursor = () => { CC.style.display = 'none'; };
+
+  let data;
+  try { data = await (await fetch('/zones-geo.json')).json(); }
+  catch (e) { document.getElementById('map').textContent = "No s'ha pogut carregar el mapa"; return; }
+
+  function onPickZone(id, name) {
+    if (embedded) { window.parent.postMessage({ type: 'mercasats-zone', region: id, name }, '*'); return; }
+    if (window.confirm('Filtrar anuncis només de zona ' + name + '?')) window.location.href = '/?region=' + encodeURIComponent(id);
+  }
+  function setPicked(latlng) {
+    picked = { lat: +latlng.lat.toFixed(5), lng: +latlng.lng.toFixed(5) };
+    pickVal.textContent = picked.lat + ', ' + picked.lng;
+    pickBar.style.display = 'flex';
+    if (pickMarker) pickMarker.setLatLng(latlng); else pickMarker = L.marker(latlng).addTo(map);
+  }
+
+  const bgStyle = { fillColor: '#243450', fillOpacity: 1, color: '#16203a', weight: 0.6 };
+  function zoneStyle(z) { return { fillColor: z.color, fillOpacity: 0.9, color: '#ffffff', weight: 1, className: 'zone-path' }; }
+
+  function addZones(map) {
+    Object.entries(data.zones).forEach(([id, z]) => {
+      L.geoJSON({ type: 'Feature', geometry: z.geometry }, {
+        style: zoneStyle(z),
+        onEachFeature: (f, lyr) => {
+          lyr.bindTooltip(z.name, { direction: 'center', className: 'zone-name', sticky: false, opacity: 1 });
+          lyr.on('mouseover', () => {
+            lyr.setStyle({ weight: 2.6, color: '#f7931a', fillOpacity: 1 });
+            lyr.bringToFront();
+            const el = lyr.getElement && lyr.getElement(); if (el) el.classList.add('zone-hover');
+          });
+          lyr.on('mouseout', () => {
+            lyr.setStyle(zoneStyle(z));
+            const el = lyr.getElement && lyr.getElement(); if (el) el.classList.remove('zone-hover');
+          });
+          lyr.on('click', (e) => {
+            if (MODE === 'pick') { setPicked(e.latlng); L.DomEvent.stop(e); }
+            else onPickZone(id, z.name);
+          });
+        }
+      }).addTo(map);
+    });
+  }
+
+  // ---- Single map: all of Spain incl. Canary Islands (zoom toward any zone) ----
+  const map = L.map('map', { zoomControl: true, attributionControl: false, zoomSnap: 0.25, maxBoundsViscosity: 0.9 });
+  const bg = L.geoJSON(data.spain, { style: bgStyle, interactive: false }).addTo(map);
+  addZones(map);
+  const bounds = bg.getBounds();           // includes the Canary Islands
+  map.fitBounds(bounds, { padding: [12, 12] });
+  map.setMaxBounds(bounds.pad(0.12));
+  map.setMinZoom(map.getZoom());            // can't zoom out past "all of Spain + Canaries"
+  map.setMaxZoom(map.getZoom() + 6);        // can zoom in to comarca / island detail
+  map.on('mousemove', cursor); map.on('mouseout', hideCursor);
+  if (MODE === 'pick') map.on('click', (e) => setPicked(e.latlng));
+
+  document.getElementById('pickConfirm').addEventListener('click', () => {
+    if (picked && embedded) window.parent.postMessage({ type: 'mercasats-coords', lat: picked.lat, lng: picked.lng }, '*');
+  });
+  if (embedded) document.getElementById('backLink').style.display = 'none';
+})();
+</script>
+</body>
+</html>
