@@ -53,6 +53,10 @@
     'Només península': { es: 'Solo península', en: 'Mainland only' },
     'Península i illes': { es: 'Península e islas', en: 'Mainland and islands' },
     'Internacional': { es: 'Internacional', en: 'International' },
+    // Trust badge (relatr web-of-trust)
+    'Confiança: Alta': { es: 'Confianza: Alta', en: 'Trust: High' },
+    'Confiança: Mitjana': { es: 'Confianza: Media', en: 'Trust: Medium' },
+    'Confiança: Baixa': { es: 'Confianza: Baja', en: 'Trust: Low' },
     // Header
     '🟠 Què és Merca-sats?': {
       es: '🟠 ¿Qué es Merca-sats?',
