@@ -60,5 +60,8 @@ if (!columns.includes('reserved')) db.exec(`ALTER TABLE products ADD COLUMN rese
 if (!columns.includes('reserved_by')) db.exec(`ALTER TABLE products ADD COLUMN reserved_by TEXT`);
 if (!columns.includes('reserved_at')) db.exec(`ALTER TABLE products ADD COLUMN reserved_at TEXT`);
 if (!columns.includes('expires_at')) db.exec(`ALTER TABLE products ADD COLUMN expires_at INTEGER`);
+if (!columns.includes('coords')) db.exec(`ALTER TABLE products ADD COLUMN coords TEXT`); // "lat,lng" optional, picked on the zones map
+if (!columns.includes('shipping_option')) db.exec(`ALTER TABLE products ADD COLUMN shipping_option TEXT DEFAULT 'no'`);
+if (!columns.includes('shipping_price')) db.exec(`ALTER TABLE products ADD COLUMN shipping_price TEXT`);
 
 module.exports = db;

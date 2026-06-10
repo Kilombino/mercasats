@@ -11,6 +11,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="/nostr-auth.bundle.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script src="/i18n.js" defer></script>
   <style>
     :root {
       --bg: #0f0f0f;
@@ -245,6 +246,39 @@
     .comunitat-card .links .npub-btn.copied {
       background: #2e7d32;
     }
+    .comunitat-card .links .onion-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      background: #59316B; color: #fff; border: none; cursor: pointer;
+      padding: 10px 14px; border-radius: 8px; font-weight: 600; font-size: 14px;
+      transition: filter 0.2s; width: 100%; font-family: inherit;
+    }
+    .comunitat-card .links .onion-btn:hover { filter: brightness(1.15); }
+    .comunitat-card .links .onion-btn-icon {
+      width: 22px; height: 22px; flex-shrink: 0;
+    }
+    .comunitat-card .links .onion-btn.copied {
+      background: #2e7d32;
+    }
+    /* Compact "copy npub" button reused inside the user-rating modal. */
+    .modal-npub-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      background: #7B1FA2; color: #fff; border: none; cursor: pointer;
+      padding: 6px 12px; border-radius: 6px; font-size: 12px;
+      margin-top: 8px; font-family: inherit;
+      transition: filter 0.2s;
+    }
+    .modal-npub-btn:hover { filter: brightness(1.15); }
+    .modal-npub-btn .npub-btn-icon { width: 16px; height: 16px; flex-shrink: 0; }
+    .modal-npub-btn.copied { background: #2e7d32; }
+    .modal-tg-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      background: #229ED9; color: #fff; border: none; cursor: pointer;
+      padding: 6px 12px; border-radius: 6px; font-size: 12px;
+      margin-top: 8px; margin-left: 6px; font-family: inherit;
+      text-decoration: none; transition: filter 0.2s;
+    }
+    .modal-tg-btn:hover { filter: brightness(1.15); }
+    .modal-tg-btn .tg-btn-icon-sm { width: 16px; height: 16px; flex-shrink: 0; }
     .comunitat-card p {
       color: var(--muted); font-size: 13px; line-height: 1.45; margin: 0;
     }
@@ -365,6 +399,41 @@
     }
 
     /* Filters bar styling */
+
+    /* Zones map */
+    .zones-map-modal { max-width: 1040px; padding: 24px; }
+    .zones-map-wrap { background: #0c1830; border: 1px solid rgba(247,147,26,0.25); border-radius: 8px; overflow: hidden; }
+    .zones-map { display: block; width: 100%; height: auto; }
+    .zones-map path.other { fill: #2a3a55; stroke: #1a2440; stroke-width: 0.5; pointer-events: none; }
+    .zones-map g.zone { cursor: pointer; transition: filter .2s ease; }
+    .zones-map g.zone path { stroke: #1a2440; stroke-width: 0.7; transition: opacity .25s ease; }
+    /* No transform on hover: moving the shape out from under the cursor caused
+       enter/leave flicker between adjacent zones. Highlight in place instead. */
+    .zones-map g.zone:hover path { stroke: #f7931a; stroke-width: 1.6; }
+    .zones-map g.zone:hover { filter: drop-shadow(0 0 7px rgba(247,147,26,0.9)) brightness(1.12); }
+    .zones-map.has-hover g.zone:not(:hover) path { opacity: 0.32; }
+    .zones-map.has-hover path.other { opacity: 0.4; }
+    .zones-map text.zone-label {
+      fill: #fff; font-family: 'Chakra Petch', sans-serif; font-weight: 800;
+      font-size: 18px; letter-spacing: 0.5px; pointer-events: none;
+      paint-order: stroke; stroke: rgba(0,0,0,0.85); stroke-width: 3.5px;
+      text-anchor: middle; opacity: 0; transition: opacity .12s ease;
+    }
+    .zones-map g.zone:hover text.zone-label,
+    .zones-map g.zone:focus text.zone-label { opacity: 1; }
+    .zones-extra { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 16px; }
+    .zones-extra button {
+      background: rgba(15,15,30,0.65); border: 1px solid var(--border); color: var(--text);
+      border-radius: 999px; padding: 8px 14px; cursor: pointer; font-family: 'Chakra Petch', sans-serif;
+      font-size: 14px; display: inline-flex; align-items: center; gap: 6px; transition: border-color .15s, background .15s;
+    }
+    .zones-extra button:hover { border-color: var(--accent); background: rgba(247,147,26,0.12); }
+    .zones-extra button img { width: 18px; height: 18px; border-radius: 4px; }
+    .zones-map-hint { color: var(--muted); font-size: 13px; text-align: center; margin-top: 10px; }
+    @media (max-width: 768px) {
+      .zones-map-modal { padding: 14px; margin: 8px; max-width: 96vw; }
+      .zones-map text.zone-label { font-size: 16px; }
+    }
   </style>
 </head>
 <body>
@@ -395,6 +464,8 @@
     <span class="nostr-status" id="nostrStatus"></span>
     <button class="btn btn-outline" id="nostrBtn" onclick="handleLogin()">🔐 Login</button>
     <button class="btn btn-outline" id="profileBtn" onclick="openMyProfile()" style="display:none">👤 Perfil</button>
+    <button class="btn btn-outline" onclick="window.location.href='/meetups'" title="Meetups Bitcoin d'Espanya">🤝 Meetups</button>
+    <button class="btn btn-outline" onclick="openZonesMap()" title="Veure i filtrar per zones">🗺️ Zones</button>
     <button class="btn btn-accent" onclick="openNewProduct()">+ Publicar</button>
   </div>
 </div>
@@ -414,6 +485,11 @@
         <p>Carregant productes...</p>
       </div>
     </div>
+    <div id="paginationBar" style="display:none;justify-content:center;align-items:center;gap:12px;margin-top:24px;padding:12px;flex-wrap:wrap">
+      <button id="pagPrev" class="btn" onclick="changePage(-1)" style="padding:6px 14px">‹ Anterior</button>
+      <span id="pagInfo" style="font-size:14px;color:var(--text)">1 / 1</span>
+      <button id="pagNext" class="btn" onclick="changePage(1)" style="padding:6px 14px">Següent ›</button>
+    </div>
   </div>
   <div class="sidebar">
     <div class="sidebar-card comunitat-card">
@@ -432,6 +508,10 @@
           <img src="/amethyst-logo.svg" alt="" class="npub-btn-icon">
           <span>Copiar npub</span>
         </button>
+        <button class="onion-btn" onclick="copyOnion()" title="Copiar direcció onion de Merca-sats (Tor)">
+          <img src="/tor-browser-icon.svg" alt="" class="onion-btn-icon">
+          <span>Copiar adreça .onion</span>
+        </button>
       </div>
     </div>
     <div class="sidebar-card">
@@ -448,6 +528,9 @@
   <p>Pagaments en Bitcoin ⚡</p>
   <a href="https://t.me/trobadesbitcoiners" target="_blank" rel="noopener">
     <img src="/trobades-logo.jpg" alt="Trobades Bitcoiners" style="height:120px;border-radius:16px;margin-top:12px;transition:transform 0.2s;cursor:pointer" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
+  </a>
+  <a href="/meetups" title="Meetups Bitcoin d'Espanya">
+    <img src="/ready-to-meetup.jpg" alt="Ready to Meetup — Meetups Bitcoin d'Espanya" style="height:120px;border-radius:16px;margin-top:12px;margin-left:14px;transition:transform 0.2s;cursor:pointer" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'">
   </a>
 </div>
 
@@ -474,6 +557,17 @@
       </div>
     </div>
     <div class="form-group">
+      <label>Envíos</label>
+      <select id="npShipping" onchange="toggleShipPrice('np')">
+        <option value="no">No disponibles</option>
+        <option value="inclos">Incluidos en el precio</option>
+        <option value="peninsula">Solo península</option>
+        <option value="peninsula_illes">Península e islas</option>
+        <option value="internacional">Internacional</option>
+      </select>
+      <input type="text" id="npShipPrice" placeholder="Preu de l'enviament (opcional)" maxlength="20" style="margin-top:8px;display:none">
+    </div>
+    <div class="form-group">
       <label>Categoria</label>
       <select id="npCategory">
         <option value="">Sense especificar</option>
@@ -486,12 +580,24 @@
       </select>
     </div>
     <div class="form-group">
+      <label>Coordenades (opcional)</label>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="npCoords" placeholder="Sense coordenades" readonly style="flex:1">
+        <button type="button" class="btn btn-outline" onclick="openCoordPicker()" style="white-space:nowrap">🗺️ Mostrar zones</button>
+      </div>
+      <div style="font-size:0.85em;color:var(--text-muted);margin-top:4px">Fes clic al mapa per triar el punt. S'enviarà a Telegram i Nostr.</div>
+    </div>
+    <div class="form-group">
       <label>Telegram @ (per contactar)</label>
       <input type="text" id="npTelegram" placeholder="@elteuuser">
     </div>
     <div class="form-group">
-      <label>Foto (URL)</label>
-      <input type="text" id="npPhoto" placeholder="https://...">
+      <label>Fotos (fins a 5)</label>
+      <div id="npPhotoGrid" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px"></div>
+      <input type="file" id="npPhotoFile" accept="image/*" multiple style="display:none" onchange="uploadNpPhotos(this.files)">
+      <button type="button" class="btn btn-outline" id="npPhotoBtn" onclick="document.getElementById('npPhotoFile').click()" style="margin-bottom:8px;width:100%">📷 Pujar fotos de la galeria</button>
+      <input type="text" id="npPhoto" placeholder="O pega una URL de foto...">
+      <div id="npPhotoStatus" style="font-size:0.85em;color:var(--text-muted);margin-top:4px"></div>
     </div>
     <div class="form-group">
       <label>Caducitat (mesos) <span style="color:var(--text-muted);font-weight:normal;font-size:0.85em">— l'anunci s'eliminarà dels relés Nostr al passar aquest termini</span></label>
@@ -504,8 +610,37 @@
     <div class="pow-status" id="powStatus"></div>
     <div style="display:flex;gap:10px;margin-top:20px">
       <button class="btn btn-accent" onclick="submitProduct()" id="submitBtn">Publicar</button>
-      <button class="btn btn-outline" onclick="closeModal('newProductModal')">Cancel·lar</button>
+      <button class="btn btn-outline" onclick="closeNewProductModal()">Cancel·lar</button>
     </div>
+  </div>
+</div>
+
+<!-- Zones Map Modal -->
+<div class="modal-overlay" id="zonesMapModal">
+  <div class="modal zones-map-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="margin:0">🗺️ Filtrar per zona</h2>
+      <button class="btn btn-outline" onclick="closeModal('zonesMapModal')" style="padding:6px 12px">✕</button>
+    </div>
+    <div class="zones-map-wrap">
+      <div id="zonesMapContainer" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px">Carregant mapa…</div>
+    </div>
+    <div class="zones-map-hint">Passa el cursor (o toca al mòbil) per veure cada zona. Fes clic per filtrar els anuncis.</div>
+    <div class="zones-extra" id="zonesExtra"></div>
+  </div>
+</div>
+
+<!-- Coordinate Picker Modal (for new product) -->
+<div class="modal-overlay" id="coordPickerModal">
+  <div class="modal zones-map-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <h2 style="margin:0">🗺️ Tria les coordenades</h2>
+      <button class="btn btn-outline" onclick="closeModal('coordPickerModal')" style="padding:6px 12px">✕</button>
+    </div>
+    <div class="zones-map-wrap">
+      <div id="coordPickerContainer" style="min-height:200px;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px">Carregant mapa…</div>
+    </div>
+    <div class="zones-map-hint">Fes clic al mapa per triar el punt i prem "Fer servir".</div>
   </div>
 </div>
 
@@ -631,6 +766,17 @@
       </div>
     </div>
     <div class="form-group">
+      <label>Envíos</label>
+      <select id="epShipping" onchange="toggleShipPrice('ep')">
+        <option value="no">No disponibles</option>
+        <option value="inclos">Incluidos en el precio</option>
+        <option value="peninsula">Solo península</option>
+        <option value="peninsula_illes">Península e islas</option>
+        <option value="internacional">Internacional</option>
+      </select>
+      <input type="text" id="epShipPrice" placeholder="Preu de l'enviament (opcional)" maxlength="20" style="margin-top:8px;display:none">
+    </div>
+    <div class="form-group">
       <label>Categoria</label>
       <select id="epCategory">
         <option value="">Sense especificar</option>
@@ -664,6 +810,14 @@
       <h3 id="ratingSeller"></h3>
       <div class="stars" id="ratingAvg"></div>
       <p id="ratingCount" style="color:var(--muted);font-size:13px"></p>
+      <button class="modal-npub-btn" id="ratingNpubBtn" onclick="copyUserNpub()" style="display:none" title="Copiar npub d'aquest usuari">
+        <img src="/amethyst-logo.svg" alt="" class="npub-btn-icon">
+        <span>Copiar npub</span>
+      </button>
+      <a class="modal-tg-btn" id="ratingTelegramBtn" target="_blank" rel="noopener" style="display:none" title="Contactar per Telegram">
+        <img src="/telegram-logo.svg" alt="" class="tg-btn-icon-sm">
+        <span id="ratingTelegramLabel">Telegram</span>
+      </a>
     </div>
     <div id="ratingsList"></div>
     <div id="rateForm" style="display:none;margin-top:20px;border-top:1px solid var(--border);padding-top:20px">
@@ -684,12 +838,53 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="photoLightbox" style="cursor:zoom-out">
+  <img id="photoLightboxImg" style="max-width:95vw;max-height:95vh;object-fit:contain">
+</div>
+
 <script>
 const TROBADES_NPUB = 'npub1qqqqqq58mqqqpdppmg00j4t2j6tgnswzr4z4s2mpsnx9zcnej9tq2wrgal';
+
+// Map a photo URL to its thumbnail variant for grid cards. Local /photos/X.jpg
+// → /photos/thumbs/X.webp (generated by the backend's thumb.js). External URLs
+// (Unsplash etc.) are returned as-is — they're already small.
+function thumbForCard(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (!url.startsWith('/photos/')) return url;
+  if (url.startsWith('/photos/thumbs/')) return url;
+  const slash = url.lastIndexOf('/');
+  const dot = url.lastIndexOf('.');
+  const base = dot > slash ? url.slice(slash + 1, dot) : url.slice(slash + 1);
+  return `/photos/thumbs/${base}.webp`;
+}
 
 function copyNpub() {
   navigator.clipboard.writeText(TROBADES_NPUB).then(() => {
     const btn = document.querySelector('.npub-btn');
+    const label = btn.querySelector('span');
+    const orig = label.textContent;
+    label.textContent = '✅ Copiat!';
+    btn.classList.add('copied');
+    setTimeout(() => { label.textContent = orig; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+const MERCASATS_ONION = 'mercasat3yhtc5gadhlnrwrgcebnh6fk6qe7zntdagxsmhlymdryiiid.onion';
+function copyOnion() {
+  navigator.clipboard.writeText(MERCASATS_ONION).then(() => {
+    const btn = document.querySelector('.onion-btn');
+    const label = btn.querySelector('span');
+    const orig = label.textContent;
+    label.textContent = '✅ Copiat!';
+    btn.classList.add('copied');
+    setTimeout(() => { label.textContent = orig; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function copyUserNpub() {
+  if (!currentRatedNpub || !currentRatedNpub.startsWith('npub1')) return;
+  const btn = document.getElementById('ratingNpubBtn');
+  navigator.clipboard.writeText(currentRatedNpub).then(() => {
     const label = btn.querySelector('span');
     const orig = label.textContent;
     label.textContent = '✅ Copiat!';
@@ -711,6 +906,11 @@ async function init() {
   // opens with the user already showing as logged in.
   try { await restoreSession(); } catch(e) { console.warn('restoreSession:', e); }
   await Promise.all([loadCategories(), loadRegions(), loadUsers()]);
+  // Apply ?region=<id> deep link (e.g. coming from the /zones map) before first load.
+  try {
+    const region = new URL(window.location.href).searchParams.get('region');
+    if (region) { const sel = document.getElementById('regionFilter'); if (sel) sel.value = region; }
+  } catch(e) { /* ignore */ }
   await loadProducts();
 
   // Open product modal if the URL contains ?p=<id> (shared/deep link)
@@ -734,11 +934,12 @@ async function loadCategories() {
 
 function renderCategories() {
   // Populate both the filter bar dropdown and the new product form dropdown
+  const tc = (id, name) => (window.tCat ? window.tCat(id, name) : name);
   const opts = allCategories.filter(c => c.id && c.count > 0).map(c =>
-    `<option value="${c.id}">${c.emoji} ${c.name} (${c.count})</option>`
+    `<option value="${c.id}">${c.emoji} ${tc(c.id, c.name)} (${c.count})</option>`
   ).join('');
   const allOpts = allCategories.filter(c => c.id).map(c =>
-    `<option value="${c.id}">${c.emoji} ${c.name}</option>`
+    `<option value="${c.id}">${c.emoji} ${tc(c.id, c.name)}</option>`
   ).join('');
   const barSel = document.getElementById('categoryFilterBar');
   const current = barSel.value;
@@ -757,6 +958,8 @@ function filterCategory(cat) {
 }
 
 // --- Regions ---
+// Render the emoji in <option> tags (browsers don't render <img> inside <option>),
+// but in product cards / details we use regionBadge() to swap emoji for icon_url.
 async function loadRegions() {
   try {
     const res = await fetch(`${API}/api/regions`);
@@ -767,7 +970,20 @@ async function loadRegions() {
   } catch(e) { console.error(e); }
 }
 
+// Render a region as "icon name" — uses <img> when icon_url is set, emoji otherwise.
+function regionBadge(region) {
+  if (!region) return '';
+  if (region.icon_url) {
+    return `<img src="${escapeHtml(region.icon_url)}" alt="" style="width:18px;height:18px;border-radius:4px;vertical-align:-3px;margin-right:4px"> ${escapeHtml(region.name)}`;
+  }
+  return `${region.emoji} ${escapeHtml(region.name)}`;
+}
+
 // --- Products ---
+const PRODUCTS_PER_PAGE = 24;
+let allProducts = [];
+let currentPage = 1;
+
 async function loadProducts() {
   const category = document.getElementById('categoryFilterBar').value;
   const region = document.getElementById('regionFilter').value;
@@ -779,26 +995,55 @@ async function loadProducts() {
 
   try {
     const res = await fetch(`${API}/api/products?${params}`);
-    const products = await res.json();
-    renderProducts(products);
+    allProducts = await res.json();
+    currentPage = 1;
+    renderProducts();
   } catch(e) {
     document.getElementById('productsGrid').innerHTML = '<div class="empty-state"><p>Error carregant productes</p></div>';
+    document.getElementById('paginationBar').style.display = 'none';
   }
 }
 
-function renderProducts(products) {
+function changePage(delta) {
+  const totalPages = Math.max(1, Math.ceil(allProducts.length / PRODUCTS_PER_PAGE));
+  currentPage = Math.min(totalPages, Math.max(1, currentPage + delta));
+  renderProducts();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function renderProducts() {
   const grid = document.getElementById('productsGrid');
-  if (!products.length) {
+  const pagBar = document.getElementById('paginationBar');
+  if (!allProducts.length) {
     grid.innerHTML = '<div class="empty-state"><p>🛒 No hi ha productes encara</p><p>Sigues el primer en publicar!</p></div>';
+    pagBar.style.display = 'none';
     return;
   }
 
+  const totalPages = Math.max(1, Math.ceil(allProducts.length / PRODUCTS_PER_PAGE));
+  if (currentPage > totalPages) currentPage = totalPages;
+  const start = (currentPage - 1) * PRODUCTS_PER_PAGE;
+  const products = allProducts.slice(start, start + PRODUCTS_PER_PAGE);
+
+  if (totalPages > 1) {
+    pagBar.style.display = 'flex';
+    document.getElementById('pagInfo').textContent = `${currentPage} / ${totalPages}`;
+    document.getElementById('pagPrev').disabled = currentPage === 1;
+    document.getElementById('pagNext').disabled = currentPage === totalPages;
+  } else {
+    pagBar.style.display = 'none';
+  }
+
   grid.innerHTML = products.map(p => {
-    const photo = p.photos && p.photos.length ? `<img class="product-photo" src="${escapeHtml(p.photos[0])}" alt="" onerror="this.outerHTML='<div class=product-photo-placeholder>📦</div>'">` : '<div class="product-photo-placeholder">📦</div>';
+    const rawPhoto = p.photos && p.photos.length ? p.photos[0] : null;
+    const cardPhoto = thumbForCard(rawPhoto);
+    const photo = rawPhoto ? `<img class="product-photo" src="${escapeHtml(cardPhoto)}" alt="" loading="lazy" onerror="if(this.src!==this.dataset.full){this.src=this.dataset.full;}else{this.outerHTML='<div class=product-photo-placeholder>📦</div>';}" data-full="${escapeHtml(rawPhoto)}">` : '<div class="product-photo-placeholder">📦</div>';
     const cat = allCategories.find(c => c.id === p.category);
-    const catText = cat ? `${cat.emoji} ${cat.name}` : '';
+    const catText = cat ? `${cat.emoji} ${window.tCat ? window.tCat(cat.id, cat.name) : cat.name}` : '';
     const region = allRegions.find(r => r.id === p.region);
-    const regionText = region ? `📍 ${region.name}` : '';
+    const regionText = region ? (region.icon_url
+      ? `<img src="${escapeHtml(region.icon_url)}" alt="" style="width:14px;height:14px;border-radius:3px;vertical-align:-2px;margin-right:3px">${escapeHtml(region.name)}`
+      : `📍 ${escapeHtml(region.name)}`) : '';
     const sellerLink = p.seller_telegram ? `<a href="https://t.me/${p.seller_telegram.replace('@','')}" target="_blank">${escapeHtml(p.seller_telegram)}</a>` : (p.seller_npub ? `<span style="cursor:pointer;color:var(--accent)" onclick="openUserProfile('${p.seller_npub}')">${p.seller_npub.substring(0,12)}...</span>` : 'Anonim');
     const currency = (p.price_currency || '').toUpperCase() === 'EUR' ? '€' : ' sats';
     const priceDisplay = (p.price_currency || '').toUpperCase() === 'EUR' ? `${escapeHtml(p.price)}€` : `${escapeHtml(p.price)} sats`;
@@ -880,11 +1125,28 @@ function renderUsers() {
 
 async function openUserProfile(npub) {
   currentRatedNpub = npub;
+  document.getElementById('ratingNpubBtn').style.display = npub && npub.startsWith('npub1') ? 'inline-flex' : 'none';
+  document.getElementById('ratingTelegramBtn').style.display = 'none';
   try {
     const res = await fetch(`${API}/api/users/${npub}`);
     const data = await res.json();
     const name = data.user.display_name || npub.substring(0, 16) + '...';
     document.getElementById('ratingSeller').textContent = name;
+
+    // Telegram contact: prefer telegram_username stored on the profile,
+    // fall back to the seller_telegram of one of their listings.
+    let tgHandle = data.user.telegram_username || null;
+    if (!tgHandle && Array.isArray(data.products)) {
+      const withTg = data.products.find(p => p.seller_telegram);
+      if (withTg) tgHandle = withTg.seller_telegram;
+    }
+    if (tgHandle) {
+      const clean = tgHandle.replace(/^@+/, '');
+      const tgBtn = document.getElementById('ratingTelegramBtn');
+      tgBtn.href = `https://t.me/${clean}`;
+      document.getElementById('ratingTelegramLabel').textContent = '@' + clean;
+      tgBtn.style.display = 'inline-flex';
+    }
     // Show picture
     const sellerProfile = document.getElementById('ratingSeller').parentElement;
     const existingPic = sellerProfile.querySelector('.rating-pic');
@@ -1171,7 +1433,7 @@ async function initNostrConnect() {
     // Override window.nostr with NIP-46 signer
     window.nostr = {
       getPublicKey: async () => remotePubkey,
-      signEvent: async (event) => nip46client.signEvent(event),
+      signEvent: async (event) => { if (!nip46client) throw new Error('Signer remot desconnectat. Torna a connectar.'); return nip46client.signEvent(event); },
     };
 
     document.getElementById('connectWaiting').style.display = 'none';
@@ -1321,12 +1583,72 @@ async function openNewProduct() {
   }
   document.getElementById('newProductModal').classList.add('active');
   document.getElementById('powStatus').textContent = '';
+  // Reset photo state every time the modal opens
+  window.npUploadedPhotos = [];
+  renderNpPhotoGrid();
+  document.getElementById('npPhotoStatus').textContent = '';
+  document.getElementById('npPhotoFile').value = '';
+}
+
+window.npUploadedPhotos = window.npUploadedPhotos || [];
+const NP_MAX_PHOTOS = 5;
+
+function renderNpPhotoGrid() {
+  const grid = document.getElementById('npPhotoGrid');
+  if (!grid) return;
+  grid.innerHTML = window.npUploadedPhotos.map((url, i) => `
+    <div style="position:relative;width:90px;height:90px;border-radius:10px;overflow:hidden;background:#222">
+      <img src="${escapeHtml(url)}" style="width:100%;height:100%;object-fit:cover" alt="">
+      <button type="button" onclick="removeNpPhoto(${i})" title="Eliminar"
+        style="position:absolute;top:2px;right:2px;width:22px;height:22px;border-radius:50%;border:none;background:rgba(0,0,0,0.7);color:#f7931a;cursor:pointer;font-size:14px;line-height:1">✕</button>
+    </div>
+  `).join('');
+  const btn = document.getElementById('npPhotoBtn');
+  if (btn) btn.disabled = window.npUploadedPhotos.length >= NP_MAX_PHOTOS;
+}
+
+function removeNpPhoto(i) {
+  window.npUploadedPhotos.splice(i, 1);
+  renderNpPhotoGrid();
+}
+
+async function uploadNpPhotos(fileList) {
+  const status = document.getElementById('npPhotoStatus');
+  const files = Array.from(fileList || []).slice(0, NP_MAX_PHOTOS - window.npUploadedPhotos.length);
+  if (files.length === 0) {
+    status.textContent = `Màxim ${NP_MAX_PHOTOS} fotos.`;
+    return;
+  }
+  status.textContent = `Pujant ${files.length} foto(s)...`;
+  let ok = 0, fail = 0;
+  for (const f of files) {
+    try {
+      const fd = new FormData();
+      fd.append('photo', f);
+      const r = await fetch(`${API}/api/upload-photo`, { method: 'POST', body: fd });
+      if (!r.ok) { fail++; continue; }
+      const { url } = await r.json();
+      if (url) { window.npUploadedPhotos.push(url); ok++; }
+      renderNpPhotoGrid();
+    } catch (e) { fail++; }
+  }
+  status.textContent = fail ? `${ok} pujades, ${fail} amb error.` : `${ok} foto(s) pujada(es).`;
+  document.getElementById('npPhotoFile').value = '';
 }
 
 // Request a Nostr signer (extension or NIP-46)
+// True only when we can actually sign RIGHT NOW. For NIP-46 the window.nostr
+// override exists even after the bunker connection drops (nip46client = null),
+// which gave a false positive → "Cannot read properties of null (reading
+// 'signEvent')". Require a live nip46client for NIP-46 sessions.
+function hasWorkingSigner() {
+  if (loginMethod === 'nip46') return !!(nip46client && nip46client.userPubkey);
+  return !!(window.nostr && window.nostr.signEvent);
+}
+
 async function requestSigner() {
   // Already have a working signer?
-  if (window.nostr?.signEvent) {
+  if (hasWorkingSigner()) {
     try {
       userNpub = userNpub || await window.nostr.getPublicKey();
       canSign = true;
@@ -1341,7 +1663,7 @@ async function requestSigner() {
   if (nip46client && nip46client.userPubkey) {
     window.nostr = {
       getPublicKey: async () => nip46client.userPubkey,
-      signEvent: async (event) => nip46client.signEvent(event),
+      signEvent: async (event) => { if (!nip46client) throw new Error('Signer remot desconnectat. Torna a connectar.'); return nip46client.signEvent(event); },
     };
     userNpub = nip46client.userPubkey;
     canSign = true;
@@ -1357,6 +1679,133 @@ async function requestSigner() {
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('active');
+}
+
+function closeNewProductModal() {
+  const n = (window.npUploadedPhotos || []).length;
+  if (n > 0 && !confirm(`Tens ${n} foto${n > 1 ? 's' : ''} pujada${n > 1 ? 'des' : ''}. Si cancel·les es perdran. Vols cancel·lar igualment?`)) return;
+  closeModal('newProductModal');
+}
+
+// --- Zones map ---
+let zonesMapData = null;
+const ZONES_OFF_MAP = ['bcc26','galicia','tenerife','sensezna'];
+
+function openZonesMap() {
+  const modal = document.getElementById('zonesMapModal');
+  modal.classList.add('active');
+  const c = document.getElementById('zonesMapContainer');
+  if (!c.querySelector('iframe')) {
+    c.innerHTML = '<iframe src="/zones?mode=filter" title="Mapa de zones" style="width:100%;height:72vh;border:0;border-radius:8px;display:block"></iframe>';
+  }
+  const extra = document.getElementById('zonesExtra'); if (extra) extra.style.display = 'none';
+  const oldHint = document.querySelector('.zones-map-hint'); if (oldHint) oldHint.style.display = 'none';
+}
+
+// Open the zones map in "pick" mode to choose coordinates for a new product.
+function openCoordPicker() {
+  document.getElementById('coordPickerModal').classList.add('active');
+  document.getElementById('coordPickerContainer').innerHTML =
+    '<iframe src="/zones?mode=pick" title="Tria coordenades" style="width:100%;height:72vh;border:0;border-radius:8px;display:block"></iframe>';
+}
+
+// Receive selection from the embedded /zones map.
+window.addEventListener('message', (e) => {
+  const d = e.data || {};
+  if (d.type === 'mercasats-zone' && d.region) {
+    const sel = document.getElementById('regionFilter');
+    if (sel) sel.value = d.region;
+    closeModal('zonesMapModal');
+    loadProducts();
+    document.querySelector('.main')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } else if (d.type === 'mercasats-coords' && typeof d.lat === 'number') {
+    const inp = document.getElementById('npCoords');
+    if (inp) inp.value = d.lat + ',' + d.lng;
+    closeModal('coordPickerModal');
+  }
+});
+
+function pickZone(id) {
+  const sel = document.getElementById('regionFilter');
+  if (!sel) return;
+  // ensure value exists; if not (region list not loaded yet) just set anyway
+  sel.value = id;
+  closeModal('zonesMapModal');
+  loadProducts();
+  // scroll to the grid for clarity
+  document.querySelector('.main')?.scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function renderZonesMap() {
+  if (!zonesMapData) return;
+  const { width, height, zones, others } = zonesMapData;
+  const parts = [];
+  parts.push(`<svg class="zones-map" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">`);
+  if (others) parts.push(`<path class="other" d="${others}"></path>`);
+  for (const [id, z] of Object.entries(zones)) {
+    if (!z.d) continue;
+    parts.push(`<g class="zone" data-id="${id}" onclick="pickZone('${id}')" onmouseenter="onZoneHover(true)" onmouseleave="onZoneHover(false)">`);
+    parts.push(`<title>${z.emoji} ${z.name}</title>`);
+    parts.push(`<path d="${z.d}" fill="${z.color}"></path>`);
+    if (typeof z.cx === 'number' && typeof z.cy === 'number') {
+      const label = (z.name || '').toUpperCase();
+      parts.push(`<text class="zone-label" x="${z.cx}" y="${z.cy}">${label}</text>`);
+    }
+    parts.push(`</g>`);
+  }
+  parts.push('</svg>');
+  document.getElementById('zonesMapContainer').innerHTML = parts.join('');
+
+  // Extra buttons for zones not on the physical map
+  const extras = (allRegions || []).filter(r => ZONES_OFF_MAP.includes(r.id));
+  document.getElementById('zonesExtra').innerHTML = extras.map(r => {
+    const icon = r.icon_url
+      ? `<img src="${r.icon_url}" alt="">`
+      : `<span>${r.emoji}</span>`;
+    return `<button onclick="pickZone('${r.id}')">${icon}<span>${r.name}</span></button>`;
+  }).join('');
+}
+
+function onZoneHover(on) {
+  const svg = document.querySelector('#zonesMapContainer .zones-map');
+  if (!svg) return;
+  svg.classList.toggle('has-hover', on);
+}
+
+function openPhotoLightbox(url) {
+  document.getElementById('photoLightboxImg').src = url;
+  document.getElementById('photoLightbox').classList.add('active');
+}
+function closePhotoLightbox() {
+  document.getElementById('photoLightbox').classList.remove('active');
+  document.getElementById('photoLightboxImg').src = '';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('.modal-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target !== overlay) return;
+      if (overlay.id === 'productModal') closeProductDetail();
+      else if (overlay.id === 'photoLightbox') closePhotoLightbox();
+      else if (overlay.id === 'newProductModal') closeNewProductModal();
+      else closeModal(overlay.id);
+    });
+  });
+});
+
+const SHIPPING_LABELS = {
+  no: 'No disponibles', inclos: 'Incluidos en el precio', peninsula: 'Solo península',
+  peninsula_illes: 'Península e islas', internacional: 'Internacional',
+};
+function toggleShipPrice(prefix) {
+  const opt = document.getElementById(prefix + 'Shipping').value;
+  const inp = document.getElementById(prefix + 'ShipPrice');
+  if (inp) inp.style.display = (opt && opt !== 'no') ? 'block' : 'none';
+}
+// "📦 Envíos: <label> (<price>)" appended to the Nostr description; '' if none.
+function shippingLine(opt, price) {
+  if (!opt || opt === 'no') return '';
+  return '📦 Envíos: ' + (SHIPPING_LABELS[opt] || opt) + (price ? ' (' + price + ')' : '');
 }
 
 async function submitProduct() {
@@ -1381,11 +1830,29 @@ async function submitProduct() {
       return alert('Cal un signer Nostr per publicar.');
     }
 
-    const photos = document.getElementById('npPhoto').value.trim();
+    const urlPhoto = document.getElementById('npPhoto').value.trim();
     const desc = document.getElementById('npDesc').value.trim();
     const category = document.getElementById('npCategory').value || null;
     const region = document.getElementById('npRegion').value || null;
     const seller_telegram = document.getElementById('npTelegram').value.trim() || null;
+
+    // Combine uploaded photos with an optional URL field.
+    const photos = [...(window.npUploadedPhotos || [])];
+    if (urlPhoto) photos.push(urlPhoto);
+
+    // If the seller didn't provide any photo, ask the server for a generic
+    // fallback so the seller's own kind:30402 event still carries an `image`
+    // tag (otherwise Nostr clients render the post without a thumbnail).
+    if (photos.length === 0) {
+      try {
+        const qs = new URLSearchParams({ title, description: desc, category: category || '' });
+        const sugRes = await fetch(`${API}/api/suggest-photo?${qs}`);
+        if (sugRes.ok) {
+          const { photo: suggested } = await sugRes.json();
+          if (suggested) photos.push(suggested);
+        }
+      } catch(_) { /* non-fatal: publish without image */ }
+    }
 
     const noExp = document.getElementById('npNoExp')?.checked;
     const expMonths = Math.max(1, Math.min(60, parseInt(document.getElementById('npExpMonths').value, 10) || 12));
@@ -1400,6 +1867,11 @@ async function submitProduct() {
     const dRand = Array.from(dRandBytes).map(b => b.toString(16).padStart(2, '0')).join('');
     const dTag = 'mercasats-' + dRand;
 
+    // Shipping field (goes into the Nostr description and a Telegram hashtag)
+    const shipOpt = document.getElementById('npShipping').value;
+    const shipPrice = (document.getElementById('npShipPrice').value || '').trim();
+    const shipTxt = shippingLine(shipOpt, shipPrice);
+
     // Sign a Nostr event as proof of authorship
     const productEvent = {
       kind: 30402, // NIP-99 classified listing
@@ -1411,10 +1883,10 @@ async function submitProduct() {
         ['t', 'mercasats'],
         ...(category ? [['t', category]] : []),
         ...(region ? [['location', region]] : []),
-        ...(photos ? [['image', photos]] : []),
+        ...photos.map(p => ['image', p.startsWith('http') ? p : `https://mercasats.kilombino.com${p}`]),
         ...(noExp ? [] : [['expiration', String(expirationTs)]]),
       ],
-      content: desc || title
+      content: (desc || title) + (shipTxt ? '\n\n' + shipTxt : '')
     };
 
     let signedEvent;
@@ -1442,7 +1914,10 @@ async function submitProduct() {
       category, region,
       seller_telegram,
       seller_npub: userNpub || null,
-      photos: photos ? [photos] : [],
+      photos,
+      coords: (document.getElementById('npCoords').value || '').trim() || null,
+      shipping_option: shipOpt || 'no',
+      shipping_price: (shipOpt && shipOpt !== 'no') ? shipPrice : '',
       challenge, nonce,
       signed_event: signedEvent
     };
@@ -1457,7 +1932,11 @@ async function submitProduct() {
       loadProducts();
       loadRegions();
       // Clear form
-      ['npTitle','npDesc','npPrice','npTelegram','npPhoto'].forEach(id => document.getElementById(id).value = '');
+      ['npTitle','npDesc','npPrice','npTelegram','npPhoto','npCoords','npShipPrice'].forEach(id => document.getElementById(id).value = '');
+      document.getElementById('npShipping').value = 'no'; toggleShipPrice('np');
+      window.npUploadedPhotos = [];
+      renderNpPhotoGrid();
+      document.getElementById('npPhotoStatus').textContent = '';
     } else {
       const err = await res.json();
       alert('Error: ' + err.error);
@@ -1489,6 +1968,7 @@ async function solvePoW(challenge, difficulty) {
 // --- Ratings ---
 async function openRating(npub) {
   currentRatedNpub = npub;
+  document.getElementById('ratingNpubBtn').style.display = npub && npub.startsWith('npub1') ? 'inline-flex' : 'none';
   document.getElementById('ratingSeller').textContent = npub.substring(0, 16) + '...';
   document.getElementById('ratingModal').classList.add('active');
 
@@ -1580,7 +2060,7 @@ async function openProductDetail(id) {
     const photosEl = document.getElementById('productDetailPhotos');
     if (p.photos && p.photos.length) {
       photosEl.innerHTML = p.photos.map(ph =>
-        `<img src="${escapeHtml(ph)}" style="width:100%;max-height:400px;object-fit:contain;background:#111;display:block;margin-bottom:2px;cursor:zoom-in" onclick="event.stopPropagation();window.open('${escapeHtml(ph)}','_blank')" onerror="this.style.display='none'">`
+        `<img src="${escapeHtml(ph)}" style="width:100%;max-height:400px;object-fit:contain;background:#111;display:block;margin-bottom:2px;cursor:zoom-in" onclick="event.stopPropagation();openPhotoLightbox('${escapeHtml(ph)}')" onerror="this.style.display='none'">`
       ).join('');
     } else {
       photosEl.innerHTML = '<div style="height:120px;background:#222;display:flex;align-items:center;justify-content:center;font-size:3em;color:#444">📦</div>';
@@ -1595,9 +2075,20 @@ async function openProductDetail(id) {
     // Meta
     const cat = allCategories.find(c => c.id === p.category);
     const region = allRegions.find(r => r.id === p.region);
+    const regionHtml = region ? (region.icon_url
+      ? `<span><img src="${escapeHtml(region.icon_url)}" alt="" style="width:16px;height:16px;border-radius:3px;vertical-align:-3px;margin-right:3px">${escapeHtml(region.name)}</span> · `
+      : `<span>📍 ${escapeHtml(region.name)}</span> · `) : '';
+    const coordsHtml = p.coords
+      ? `<span>📍 <a href="https://www.openstreetmap.org/?mlat=${p.coords.split(',')[0]}&mlon=${p.coords.split(',')[1]}#map=13/${p.coords.split(',')[0]}/${p.coords.split(',')[1]}" target="_blank" style="color:var(--accent);text-decoration:none">${escapeHtml(p.coords)} ↗</a></span> · `
+      : '';
+    const shipHtml = (p.shipping_option && p.shipping_option !== 'no')
+      ? `<span>📦 ${escapeHtml(SHIPPING_LABELS[p.shipping_option] || p.shipping_option)}${p.shipping_price ? ' (' + escapeHtml(p.shipping_price) + ')' : ''}</span> · `
+      : '';
     document.getElementById('productDetailMeta').innerHTML = `
-      ${cat ? `<span>${cat.emoji} ${cat.name}</span> · ` : ''}
-      ${region ? `<span>📍 ${region.name}</span> · ` : ''}
+      ${cat ? `<span>${cat.emoji} ${window.tCat ? window.tCat(cat.id, cat.name) : cat.name}</span> · ` : ''}
+      ${regionHtml}
+      ${coordsHtml}
+      ${shipHtml}
       <span>${p.source === 'telegram' ? '📱 Telegram' : '🌐 Web'}</span> ·
       <span>${p.created_at}</span>
     `;
@@ -1912,6 +2403,12 @@ async function openEditProduct(productId) {
     const p = await res.json();
     document.getElementById('epId').value = p.id;
     document.getElementById('epId').dataset.dTag = p.nostr_d_tag || ('mercasats-' + p.id);
+    // Keep the product photos so the signed edit event can carry them as
+    // absolute-URL image tags (otherwise the listing shows no images on Nostr).
+    window._editPhotos = Array.isArray(p.photos) ? p.photos : [];
+    document.getElementById('epShipping').value = p.shipping_option || 'no';
+    document.getElementById('epShipPrice').value = p.shipping_price || '';
+    toggleShipPrice('ep');
     document.getElementById('epTitle').value = p.title || '';
     document.getElementById('epDesc').value = p.description || '';
     document.getElementById('epPrice').value = p.price || '';
@@ -1920,7 +2417,7 @@ async function openEditProduct(productId) {
     const catSel = document.getElementById('epCategory');
     catSel.innerHTML = '<option value="">Sense especificar</option>' +
       allCategories.filter(c => c.id).map(c =>
-        `<option value="${c.id}">${c.emoji || ''} ${c.name}</option>`).join('');
+        `<option value="${c.id}">${c.emoji || ''} ${window.tCat ? window.tCat(c.id, c.name) : c.name}</option>`).join('');
     catSel.value = p.category || '';
 
     const regSel = document.getElementById('epRegion');
@@ -1954,11 +2451,14 @@ async function submitEditProduct() {
   const price_currency = document.getElementById('epCurrency').value;
   const category = document.getElementById('epCategory').value || null;
   const region = document.getElementById('epRegion').value || null;
+  const shipOpt = document.getElementById('epShipping').value;
+  const shipPrice = (document.getElementById('epShipPrice').value || '').trim();
+  const shipTxt = shippingLine(shipOpt, shipPrice);
   if (!title || !price) return alert('Títol i preu obligatoris');
 
-  if (!window.nostr?.signEvent) {
+  if (!hasWorkingSigner()) {
     await requestSigner();
-    if (!window.nostr?.signEvent) return alert('Cal un signer Nostr per editar');
+    if (!hasWorkingSigner()) return alert('Reconnecta el teu signer Nostr (Amber) i torna-ho a provar');
   }
 
   const btn = document.getElementById('epSubmitBtn');
@@ -1979,8 +2479,10 @@ async function submitEditProduct() {
         ...(category ? [['t', category]] : []),
         ...(region ? [['location', region]] : []),
         ...(noExp ? [] : [['expiration', String(expirationTs)]]),
+        // photos as absolute-URL image tags (so the listing shows images on Nostr)
+        ...((window._editPhotos || []).map(ph => ['image', ph.startsWith('http') ? ph : `https://mercasats.kilombino.com${ph}`])),
       ],
-      content: description || title,
+      content: (description || title) + (shipTxt ? '\n\n' + shipTxt : ''),
     };
     const signed_event = await window.nostr.signEvent(event);
     if (!signed_event?.sig) { btn.disabled = false; return; }
@@ -1988,7 +2490,8 @@ async function submitEditProduct() {
     const res = await fetch(`${API}/api/products/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ signed_event, title, description, price, price_currency, region, category }),
+      body: JSON.stringify({ signed_event, title, description, price, price_currency, region, category,
+        shipping_option: shipOpt || 'no', shipping_price: (shipOpt && shipOpt !== 'no') ? shipPrice : '' }),
     });
     const data = await res.json();
     if (res.ok && data.ok) {
@@ -2082,6 +2585,8 @@ async function submitProductRating(target) {
 
 async function openTelegramProfile(username) {
   const uname = username.startsWith('@') ? username : '@' + username;
+  currentRatedNpub = null;
+  document.getElementById('ratingNpubBtn').style.display = 'none';
   document.getElementById('ratingSeller').textContent = uname + ' (Telegram)';
   const sellerProfile = document.getElementById('ratingSeller').parentElement;
   const existingPic = sellerProfile.querySelector('.rating-pic');
@@ -2110,18 +2615,55 @@ async function openMyProfile() {
   if (!userNpub) return;
   document.getElementById('profileModal').classList.add('active');
   const profileHeader = document.getElementById('profileName');
-  profileHeader.textContent = window._myDisplayName || userNpub.substring(0, 16) + '...';
-  const profileAvatar = profileHeader.parentElement.querySelector('.profile-pic');
-  if (profileAvatar) profileAvatar.remove();
-  if (window._myPicture) {
-    const img = document.createElement('img');
-    img.src = window._myPicture;
-    img.className = 'profile-pic';
-    img.style.cssText = 'width:60px;height:60px;border-radius:50%;object-fit:cover;margin-bottom:8px';
-    img.onerror = () => { img.outerHTML = '<div style="font-size:2.5em;margin-bottom:8px">👤</div>'; };
-    profileHeader.parentElement.querySelector('div').replaceWith(img);
+  const npubBech32 = hexToNpub(userNpub);
+
+  // Renders avatar (or 👤 fallback) and updates the header text. Idempotent.
+  const renderHeader = () => {
+    profileHeader.textContent = window._myDisplayName || (npubBech32.startsWith('npub1') ? npubBech32.substring(0, 16) + '...' : userNpub.substring(0, 16) + '...');
+    const wrap = profileHeader.parentElement;
+    const existingImg = wrap.querySelector('.profile-pic');
+    const existingFallback = wrap.querySelector('.profile-pic-fallback');
+    if (window._myPicture) {
+      const img = document.createElement('img');
+      img.src = window._myPicture;
+      img.className = 'profile-pic';
+      img.style.cssText = 'width:60px;height:60px;border-radius:50%;object-fit:cover;margin-bottom:8px';
+      img.onerror = () => {
+        const fb = document.createElement('div');
+        fb.className = 'profile-pic-fallback';
+        fb.style.cssText = 'font-size:2.5em;margin-bottom:8px';
+        fb.textContent = '👤';
+        img.replaceWith(fb);
+      };
+      if (existingImg) existingImg.replaceWith(img);
+      else if (existingFallback) existingFallback.replaceWith(img);
+      else wrap.querySelector('div').replaceWith(img);
+    } else if (!existingImg && !existingFallback) {
+      const fb = document.createElement('div');
+      fb.className = 'profile-pic-fallback';
+      fb.style.cssText = 'font-size:2.5em;margin-bottom:8px';
+      fb.textContent = '👤';
+      wrap.querySelector('div').replaceWith(fb);
+    }
+  };
+
+  renderHeader();
+
+  // If name or picture weren't cached (old session), fetch from relays and refresh
+  if (!window._myDisplayName || !window._myPicture) {
+    fetchNostrProfile(userNpub).then(profile => {
+      const dn = profile?.display_name || profile?.name;
+      let changed = false;
+      if (dn && !window._myDisplayName) { window._myDisplayName = dn; changed = true; }
+      if (profile?.picture && !window._myPicture) { window._myPicture = profile.picture; changed = true; }
+      if (changed) {
+        renderHeader();
+        try { saveSession(); } catch(_) {}
+      }
+    }).catch(() => {});
   }
-  document.getElementById('profilePubkey').textContent = userNpub;
+
+  document.getElementById('profilePubkey').textContent = npubBech32;
   document.getElementById('profileProducts').innerHTML = '<div style="text-align:center;color:var(--muted);padding:20px">Carregant...</div>';
   document.getElementById('profileGiven').innerHTML = '';
   document.getElementById('profileReceived').innerHTML = '';

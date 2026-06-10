@@ -30,6 +30,7 @@ const CATEGORY_PHOTOS = {
   vehicle: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0afa?w=800&q=80',
   esport: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?w=800&q=80',
   llar: 'https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=800&q=80',
+  art: 'https://images.unsplash.com/photo-1513364776144-60967b0f800f?w=800&q=80',
 };
 
 function findGenericPhoto(text) {
