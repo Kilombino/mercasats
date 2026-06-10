@@ -1915,6 +1915,43 @@ async function renderTrustDetail(npub) {
     </div>`;
 }
 
+// Emit a NIP-58 trust badge (definition + award) signed by the rater, published via the backend.
+async function emitTrustBadge(ratedHex, stars) {
+  if (!window.nostr?.signEvent || !userNpub || !ratedHex || stars < 1) return false;
+  const by = window._myDisplayName || hexToNpub(userNpub).substring(0, 12);
+  const pic = window._myPicture || '';
+  const dTag = `mercasats-trusted-${stars}`;
+  let img = `https://mercasats.kilombino.com/api/badge-img?stars=${stars}&by=${encodeURIComponent(by)}`;
+  if (pic) img += `&pic=${encodeURIComponent(pic)}`;
+  const now = Math.floor(Date.now() / 1000);
+  const def = {
+    kind: 30009, created_at: now,
+    tags: [
+      ['d', dTag],
+      ['name', `Trusted ${stars}★ · MercaSats`],
+      ['description', `Insígnia de confiança de MercaSats (${stars}/5)`],
+      ['image', img, '600x600'], ['thumb', img, '600x600'],
+    ],
+    content: '',
+  };
+  const award = {
+    kind: 8, created_at: now,
+    tags: [['a', `30009:${userNpub}:${dTag}`], ['p', ratedHex]],
+    content: '',
+  };
+  try {
+    const sDef = await window.nostr.signEvent(def);
+    const sAward = await window.nostr.signEvent(award);
+    const r = await fetch(`${API}/api/badge`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ events: [sDef, sAward] }),
+    });
+    if (r.ok) { try { localStorage.setItem(`mctbadge:${userNpub}:${ratedHex}`, sAward.id); } catch (_) {} return true; }
+  } catch (e) { console.error('emitTrustBadge', e); }
+  return false;
+}
+const TRUST_BADGE_CONFIRM = 'Vols publicar també una insígnia de confiança a Nostr, firmada per tu? Quedarà guardada als relays i la podràs retirar esborrant la ressenya.';
+
 async function submitProduct() {
   const title = document.getElementById('npTitle').value.trim();
   const price = document.getElementById('npPrice').value.trim();
@@ -2149,6 +2186,13 @@ async function submitRating() {
       })
     });
     if (res.ok) {
+      // Offer to also publish a signed NIP-58 trust badge on Nostr.
+      try {
+        const ratedHex = npubToHex(currentRatedNpub);
+        if (window.nostr?.signEvent && ratedHex && confirm(TRUST_BADGE_CONFIRM)) {
+          await emitTrustBadge(ratedHex, selectedStars);
+        }
+      } catch (_) {}
       openUserProfile(currentRatedNpub); // Refresh
       loadUsers(); // Refresh sidebar
       selectedStars = 0;
