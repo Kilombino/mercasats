@@ -21,6 +21,38 @@
   // ---- Dictionary ----------------------------------------------------------
   // Key = Catalan source string (trimmed). Value = {es, en}.
   const I18N = {
+    // --- Added jun 2026: map, meetups, coords, shipping, footer ---
+    'Carregant mapa…': { es: 'Cargando mapa…', en: 'Loading map…' },
+    'Contactar per Telegram': { es: 'Contactar por Telegram', en: 'Contact via Telegram' },
+    'Coordenades (opcional)': { es: 'Coordenadas (opcional)', en: 'Coordinates (optional)' },
+    'Copiar direcció onion de Merca-sats (Tor)': { es: 'Copiar dirección onion de Merca-sats (Tor)', en: 'Copy Merca-sats onion address (Tor)' },
+    "Copiar npub d'aquest usuari": { es: 'Copiar npub de este usuario', en: "Copy this user's npub" },
+    'Copiar npub de Trobades Bitcoiners': { es: 'Copiar npub de Trobades Bitcoiners', en: 'Copy Trobades Bitcoiners npub' },
+    'Descarrega Merca-sats des de Zapstore': { es: 'Descarga Merca-sats desde Zapstore', en: 'Download Merca-sats from Zapstore' },
+    "Fes clic al mapa per triar el punt. S'enviarà a Telegram i Nostr.": { es: 'Haz clic en el mapa para elegir el punto. Se enviará a Telegram y Nostr.', en: 'Click the map to pick the point. It will be sent to Telegram and Nostr.' },
+    'Fes clic al mapa per triar el punt i prem "Fer servir".': { es: 'Haz clic en el mapa para elegir el punto y pulsa "Usar".', en: 'Click the map to pick the point and press "Use".' },
+    'Fotos (fins a 5)': { es: 'Fotos (hasta 5)', en: 'Photos (up to 5)' },
+    "Meetups Bitcoin d'Espanya": { es: 'Meetups Bitcoin de España', en: 'Bitcoin Meetups of Spain' },
+    'O pega una URL de foto...': { es: 'O pega una URL de foto...', en: 'Or paste a photo URL...' },
+    'Passa el cursor (o toca al mòbil) per veure cada zona. Fes clic per filtrar els anuncis.': { es: 'Pasa el cursor (o toca en el móvil) para ver cada zona. Haz clic para filtrar los anuncios.', en: 'Hover (or tap on mobile) to see each zone. Click to filter the listings.' },
+    "Preu de l'enviament (opcional)": { es: 'Precio del envío (opcional)', en: 'Shipping price (optional)' },
+    'Què és Merca-sats': { es: 'Qué es Merca-sats', en: 'What is Merca-sats' },
+    "Ready to Meetup — Meetups Bitcoin d'Espanya": { es: 'Ready to Meetup — Meetups Bitcoin de España', en: 'Ready to Meetup — Bitcoin Meetups of Spain' },
+    'Sense coordenades': { es: 'Sin coordenadas', en: 'No coordinates' },
+    'Veure i filtrar per zones': { es: 'Ver y filtrar por zonas', en: 'View and filter by zones' },
+    '📷 Pujar fotos de la galeria': { es: '📷 Subir fotos de la galería', en: '📷 Upload photos from gallery' },
+    '🗺️ Filtrar per zona': { es: '🗺️ Filtrar por zona', en: '🗺️ Filter by zone' },
+    '🗺️ Mostrar zones': { es: '🗺️ Mostrar zonas', en: '🗺️ Show zones' },
+    '🗺️ Tria les coordenades': { es: '🗺️ Elige las coordenadas', en: '🗺️ Pick the coordinates' },
+    '🗺️ Zones': { es: '🗺️ Zonas', en: '🗺️ Zones' },
+    '🤝 Meetups': { es: '🤝 Meetups', en: '🤝 Meetups' },
+    // Shipping field — form labels in Catalan; the Nostr/Telegram output stays Spanish
+    'Enviaments': { es: 'Envíos', en: 'Shipping' },
+    'No disponibles': { es: 'No disponibles', en: 'Not available' },
+    'Inclosos en el preu': { es: 'Incluidos en el precio', en: 'Included in the price' },
+    'Només península': { es: 'Solo península', en: 'Mainland only' },
+    'Península i illes': { es: 'Península e islas', en: 'Mainland and islands' },
+    'Internacional': { es: 'Internacional', en: 'International' },
     // Header
     '🟠 Què és Merca-sats?': {
       es: '🟠 ¿Qué es Merca-sats?',
