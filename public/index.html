@@ -1907,24 +1907,11 @@ async function renderTrustDetail(npub) {
   if (!d || d.score === null || d.level === 'unknown') { box.innerHTML = ''; return; }
   const c = TRUST_COLOR[d.level] || '#95a5a6';
   const pct = Math.round((d.score || 0) * 100);
-  const rows = [];
-  if (d.components && d.components.validators) {
-    for (const [k, label] of Object.entries(TRUST_VALIDATORS)) {
-      const hit = Object.entries(d.components.validators).find(([key]) => key.endsWith(':' + k));
-      if (hit) {
-        const ok = hit[1].score >= 0.5;
-        rows.push(`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-top:1px solid var(--border)"><span>${label}</span><span style="color:${ok ? '#2ecc71' : '#95a5a6'};font-weight:700">${ok ? '✓' : '✗'}</span></div>`);
-      }
-    }
-  }
   box.innerHTML = `
-    <div style="border:1px solid ${c}66;border-radius:10px;padding:12px;background:${c}14">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
-        <span style="font-size:1.3em">🌐</span>
-        <span style="font-weight:700;color:${c}"><span>${TRUST_TEXT[d.level]}</span></span>
-        <span style="color:var(--muted);font-size:12px;margin-left:auto">${pct}%</span>
-      </div>
-      ${rows.join('')}
+    <div style="border:1px solid ${c}66;border-radius:10px;padding:14px;background:${c}14;display:flex;align-items:center;gap:10px">
+      <span style="font-size:1.5em">🌐</span>
+      <span style="font-weight:700;color:${c}"><span>${TRUST_TEXT[d.level]}</span></span>
+      <span style="font-weight:800;color:${c};font-size:1.35em;margin-left:auto">${pct}%</span>
     </div>`;
 }
 
