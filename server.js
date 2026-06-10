@@ -81,6 +81,8 @@ app.use('/photos', express.static(path.join(__dirname, 'photos')));
 app.get('/zones', (req, res) => res.sendFile(path.join(__dirname, 'public', 'zones.html')));
 // Meetups map gets its own URL.
 app.get('/meetups', (req, res) => res.sendFile(path.join(__dirname, 'public', 'meetups.html')));
+// "What is Merca-sats" landing page (real HTML content for SEO).
+app.get('/que-es', (req, res) => res.sendFile(path.join(__dirname, 'public', 'que-es.html')));
 
 // --- Photo upload ---
 const multer = require('multer');
@@ -518,6 +520,7 @@ const REGIONS = [
   { id: 'zaragoza', name: 'Zaragoza', emoji: '🍑' },
   { id: 'galicia', name: 'Galicia', emoji: '🐙' },
   { id: 'tenerife', name: 'Tenerife', emoji: '🌋' },
+  { id: 'madrid', name: 'Madrid', emoji: '🐻' },
   { id: 'sensezna', name: 'Sense zona', emoji: '🌍' },
 ];
 
@@ -852,6 +855,7 @@ app.get('/api/regions', (req, res) => {
     { id: 'zaragoza', name: 'Zaragoza', emoji: '🍑' },
     { id: 'galicia', name: 'Galicia', emoji: '🐙' },
     { id: 'tenerife', name: 'Tenerife', emoji: '🌋' },
+    { id: 'madrid', name: 'Madrid', emoji: '🐻' },
     { id: 'sensezna', name: 'Sense zona', emoji: '🌍' },
   ];
   res.json(regions);
