@@ -863,6 +863,28 @@ app.get('/api/regions', (req, res) => {
   res.json(regions);
 });
 
+// --- Seller trust score (relatr web-of-trust) via the relatr-bridge sidecar ---
+const RELATR_BRIDGE = process.env.RELATR_BRIDGE || 'http://127.0.0.1:3041';
+function trustLevel(s) {
+  if (s === null || s === undefined) return 'unknown';
+  if (s >= 0.7) return 'high';
+  if (s >= 0.45) return 'medium';
+  return 'low';
+}
+app.get('/api/trust/:npub', async (req, res) => {
+  let hex = null;
+  try { hex = npubToHex(req.params.npub); } catch (e) {}
+  if (!hex && /^[0-9a-f]{64}$/i.test(req.params.npub)) hex = req.params.npub.toLowerCase();
+  if (!hex || !/^[0-9a-f]{64}$/.test(hex)) return res.status(400).json({ error: 'invalid pubkey' });
+  try {
+    const r = await fetch(`${RELATR_BRIDGE}/trust/${hex}`, { signal: AbortSignal.timeout(28000) });
+    const d = await r.json();
+    res.json({ score: d.score, level: trustLevel(d.score), components: d.components, cached: d.cached });
+  } catch (e) {
+    res.json({ score: null, level: 'unknown', error: 'unavailable' });
+  }
+});
+
 // Detect hashtag-driven event regions in user-supplied text (title/description).
 // #BCC and #BCC26 → bcc26. Returns the region id or null. Case-insensitive,
 // requires word boundary so it doesn't trigger inside arbitrary substrings.
