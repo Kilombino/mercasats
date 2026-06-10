@@ -1218,6 +1218,24 @@ async function openUserProfile(npub) {
     }).join('') || '<p style="color:var(--muted);text-align:center">Sense valoracions encara</p>';
 
     document.getElementById('rateForm').style.display = (userNpub !== npub) ? 'block' : 'none';
+    // "Delete my review" button if the logged-in user already rated this person.
+    try {
+      const myHex = (() => { try { return npubToHex(userNpub); } catch { return userNpub; } })();
+      const mine = myHex && (data.ratings || []).find(r => { try { return npubToHex(r.rater_npub) === myHex; } catch { return false; } });
+      let delBtn = document.getElementById('deleteMyRatingBtn');
+      if (mine) {
+        if (!delBtn) {
+          delBtn = document.createElement('button');
+          delBtn.id = 'deleteMyRatingBtn';
+          delBtn.className = 'btn btn-outline';
+          delBtn.style.cssText = 'margin-top:10px;font-size:13px;width:100%';
+          delBtn.textContent = '🗑️ Esborrar la meva ressenya';
+          delBtn.onclick = deleteMyRating;
+          document.getElementById('rateForm').appendChild(delBtn);
+        }
+        delBtn.style.display = 'block';
+      } else if (delBtn) { delBtn.style.display = 'none'; }
+    } catch (_) {}
     document.getElementById('ratingModal').classList.add('active');
   } catch(e) { console.error(e); }
 }
@@ -1951,6 +1969,40 @@ async function emitTrustBadge(ratedHex, stars) {
   return false;
 }
 const TRUST_BADGE_CONFIRM = 'Vols publicar també una insígnia de confiança a Nostr, firmada per tu? Quedarà guardada als relays i la podràs retirar esborrant la ressenya.';
+const DELETE_RATING_CONFIRM = 'Segur que vols esborrar la teva ressenya? Si havies emès una insígnia, també es retirarà de Nostr.';
+
+// Retract the NIP-58 badge we previously awarded to this target (kind 5 deletion of the award).
+async function removeTrustBadge(ratedHex) {
+  if (!window.nostr?.signEvent || !userNpub || !ratedHex) return;
+  const awardId = localStorage.getItem(`mctbadge:${userNpub}:${ratedHex}`);
+  if (!awardId) return;
+  try {
+    const del = { kind: 5, created_at: Math.floor(Date.now() / 1000), tags: [['e', awardId]], content: 'Insígnia retirada (ressenya esborrada)' };
+    const sDel = await window.nostr.signEvent(del);
+    await fetch(`${API}/api/badge`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ events: [sDel] }) });
+    localStorage.removeItem(`mctbadge:${userNpub}:${ratedHex}`);
+  } catch (e) { console.error('removeTrustBadge', e); }
+}
+
+async function deleteMyRating() {
+  if (!currentRatedNpub) return;
+  if (!confirm(DELETE_RATING_CONFIRM)) return;
+  if (!window.nostr?.signEvent) { await requestSigner(); if (!window.nostr?.signEvent) return alert('Cal un signer Nostr.'); }
+  if (!userNpub && window.nostr?.getPublicKey) userNpub = await window.nostr.getPublicKey();
+  try {
+    const ev = { kind: 1, created_at: Math.floor(Date.now() / 1000), tags: [['p', currentRatedNpub], ['t', 'mercasats-rating-delete']], content: 'delete rating' };
+    const signedEvent = await window.nostr.signEvent(ev);
+    const res = await fetch(`${API}/api/ratings`, {
+      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rater_npub: userNpub, rated_npub: currentRatedNpub, signed_event: signedEvent }),
+    });
+    if (res.ok) {
+      await removeTrustBadge(npubToHex(currentRatedNpub));
+      openUserProfile(currentRatedNpub);
+      loadUsers();
+    } else { alert('No s\'ha pogut esborrar la ressenya'); }
+  } catch (e) { alert('Error: ' + e.message); }
+}
 
 async function submitProduct() {
   const title = document.getElementById('npTitle').value.trim();
@@ -2725,6 +2777,10 @@ async function submitProductRating(target) {
     body: JSON.stringify(body)
   });
   if (res.ok) {
+    // Offer to also publish a signed NIP-58 trust badge on Nostr.
+    if (target.npub && window.nostr?.signEvent && confirm(TRUST_BADGE_CONFIRM)) {
+      try { await emitTrustBadge(npubToHex(target.npub), window._productStars); } catch (_) {}
+    }
     alert('Valoració enviada!');
     window._productStars = 0;
     document.getElementById('productRateComment').value = '';

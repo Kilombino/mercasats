@@ -607,6 +607,19 @@ app.post('/api/ratings', (req, res) => {
   res.json({ ok: true });
 });
 
+// Delete the rater's own review of a target (lets the client retract the matching NIP-58 badge).
+app.delete('/api/ratings', (req, res) => {
+  let { rater_npub, rated_npub, signed_event } = req.body;
+  rater_npub = npubToHex(rater_npub);
+  if (rated_npub) rated_npub = npubToHex(rated_npub);
+  if (!rater_npub || !rated_npub) return res.status(400).json({ error: 'rater_npub and rated_npub required' });
+  if (!signed_event || signed_event.pubkey !== rater_npub || !signed_event.sig) {
+    return res.status(403).json({ error: 'Signed Nostr event required matching rater_npub' });
+  }
+  db.prepare('DELETE FROM ratings WHERE rater_npub = ? AND rated_npub = ?').run(rater_npub, rated_npub);
+  res.json({ ok: true });
+});
+
 // --- User profiles ---
 app.get('/api/users', (req, res) => {
   const users = db.prepare(`

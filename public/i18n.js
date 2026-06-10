@@ -68,6 +68,11 @@
       es: '¿Quieres publicar también una insignia de confianza en Nostr, firmada por ti? Quedará guardada en los relays y podrás retirarla borrando la reseña.',
       en: 'Do you also want to publish a trust badge on Nostr, signed by you? It will be stored on the relays and you can remove it by deleting the review.',
     },
+    'Segur que vols esborrar la teva ressenya? Si havies emès una insígnia, també es retirarà de Nostr.': {
+      es: '¿Seguro que quieres borrar tu reseña? Si habías emitido una insignia, también se retirará de Nostr.',
+      en: 'Are you sure you want to delete your review? If you had issued a badge, it will also be retracted from Nostr.',
+    },
+    '🗑️ Esborrar la meva ressenya': { es: '🗑️ Borrar mi reseña', en: '🗑️ Delete my review' },
     // Header
     '🟠 Què és Merca-sats?': {
       es: '🟠 ¿Qué es Merca-sats?',
