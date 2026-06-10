@@ -1206,6 +1206,7 @@ async function openUserProfile(npub) {
     }
     document.getElementById('ratingAvg').textContent = '★'.repeat(Math.round(data.average)) + '☆'.repeat(5 - Math.round(data.average));
     document.getElementById('ratingCount').textContent = `${data.average}/5 (${data.count} valoracions)`;
+    renderTrustDetail(npub);
     document.getElementById('ratingsList').innerHTML = data.ratings.map(r => {
       const raterName = r.rater_name || r.rater_npub.substring(0, 8) + '...';
       const raterPic = r.rater_picture ? `<img src="${escapeHtml(r.rater_picture)}" style="width:24px;height:24px;border-radius:50%;object-fit:cover;vertical-align:middle;margin-right:4px" onerror="this.style.display='none'">` : '';
@@ -1889,6 +1890,42 @@ async function renderTrustBadge(elId, npub) {
   const c = TRUST_COLOR[d.level] || '#95a5a6';
   const tip = trustTooltip(d.components);
   el.innerHTML = `<span class="trust-badge" title="${escapeHtml(tip)}" style="display:inline-flex;align-items:center;gap:4px;font-size:0.72em;font-weight:600;padding:2px 9px;border-radius:11px;background:${c}22;color:${c};border:1px solid ${c}66;white-space:nowrap">🌐 <span>${TRUST_TEXT[d.level]}</span></span>`;
+}
+// Visible breakdown shown inside the user profile window (works on mobile, no hover needed).
+async function renderTrustDetail(npub) {
+  const listEl = document.getElementById('ratingsList');
+  if (!listEl) return;
+  let box = document.getElementById('trustDetail');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'trustDetail';
+    box.style.cssText = 'margin:14px 0';
+    listEl.parentElement.insertBefore(box, listEl);
+  }
+  box.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center">🌐 Calculant confiança…</div>';
+  const d = await loadTrust(npub);
+  if (!d || d.score === null || d.level === 'unknown') { box.innerHTML = ''; return; }
+  const c = TRUST_COLOR[d.level] || '#95a5a6';
+  const pct = Math.round((d.score || 0) * 100);
+  const rows = [];
+  if (d.components && d.components.validators) {
+    for (const [k, label] of Object.entries(TRUST_VALIDATORS)) {
+      const hit = Object.entries(d.components.validators).find(([key]) => key.endsWith(':' + k));
+      if (hit) {
+        const ok = hit[1].score >= 0.5;
+        rows.push(`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:13px;border-top:1px solid var(--border)"><span>${label}</span><span style="color:${ok ? '#2ecc71' : '#95a5a6'};font-weight:700">${ok ? '✓' : '✗'}</span></div>`);
+      }
+    }
+  }
+  box.innerHTML = `
+    <div style="border:1px solid ${c}66;border-radius:10px;padding:12px;background:${c}14">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:1.3em">🌐</span>
+        <span style="font-weight:700;color:${c}"><span>${TRUST_TEXT[d.level]}</span></span>
+        <span style="color:var(--muted);font-size:12px;margin-left:auto">${pct}%</span>
+      </div>
+      ${rows.join('')}
+    </div>`;
 }
 
 async function submitProduct() {
