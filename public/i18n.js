@@ -64,6 +64,10 @@
     'Seguiment mutu': { es: 'Seguimiento mutuo', en: 'Mutual follow' },
     'Activitat': { es: 'Actividad', en: 'Activity' },
     'Calculant confiança…': { es: 'Calculando confianza…', en: 'Computing trust…' },
+    'Vols publicar també una insígnia de confiança a Nostr, firmada per tu? Quedarà guardada als relays i la podràs retirar esborrant la ressenya.': {
+      es: '¿Quieres publicar también una insignia de confianza en Nostr, firmada por ti? Quedará guardada en los relays y podrás retirarla borrando la reseña.',
+      en: 'Do you also want to publish a trust badge on Nostr, signed by you? It will be stored on the relays and you can remove it by deleting the review.',
+    },
     // Header
     '🟠 Què és Merca-sats?': {
       es: '🟠 ¿Qué es Merca-sats?',

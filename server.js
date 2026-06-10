@@ -3,7 +3,7 @@ const db = require('./db');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
-const { publishProduct, startZapMonitor, deleteFromNostr } = require('./nostr-publish');
+const { publishProduct, startZapMonitor, deleteFromNostr, publishToRelays } = require('./nostr-publish');
 const { pickPhotoForProduct } = require('./generic-photos');
 
 // bech32 npub → hex conversion
@@ -901,6 +901,69 @@ app.get('/api/trust/:npub', async (req, res) => {
   } catch (e) {
     res.json({ score: null, level: 'unknown', error: 'unavailable' });
   }
+});
+
+// --- Trust badge image generator (NIP-58): profile pic + stars + "TRUSTED BY <name>", cached ---
+app.get('/api/badge-img', (req, res) => {
+  const stars = Math.max(1, Math.min(5, parseInt(req.query.stars, 10) || 5));
+  const by = (String(req.query.by || 'anon').slice(0, 26).replace(/[^\p{L}\p{N}\s@._-]/gu, '').trim()) || 'anon';
+  // Only allow external https images (basic SSRF guard).
+  let pic = String(req.query.pic || '');
+  if (!/^https:\/\/[^\s]+$/i.test(pic) || /localhost|127\.|0\.0\.0\.0|192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\./i.test(pic)) pic = '';
+  const key = crypto.createHash('md5').update(stars + '|' + by + '|' + pic).digest('hex').slice(0, 18);
+  const file = path.join(__dirname, 'photos', `badge-${key}.png`);
+  if (fs.existsSync(file)) return res.type('png').sendFile(file);
+  const starStr = '★'.repeat(stars) + '☆'.repeat(5 - stars);
+  const raw = `/tmp/bpr-${key}`, circle = `/tmp/bpc-${key}.png`;
+  const { execFile } = require('child_process');
+  // Variables passed via env (not interpolated) to avoid shell injection.
+  const script = `
+set -e
+PICARG=""
+if [ -n "$PICURL" ]; then
+  if curl -sL --max-time 6 "$PICURL" -o "$RAW" 2>/dev/null; then
+    if convert "$RAW" -resize 190x190^ -gravity center -extent 190x190 -alpha set \\( +clone -threshold 101% -fill white -draw "circle 95,95 95,2" \\) -compose copy_opacity -composite -compose over -fill none -stroke "#f7931a" -strokewidth 6 -draw "circle 95,95 95,5" "$CIRCLE" 2>/dev/null; then
+      PICARG="$CIRCLE -gravity north -geometry +0+40 -composite"
+    fi
+  fi
+fi
+convert -size 600x600 xc:#15171c $PICARG \
+  -gravity center -font DejaVu-Sans-Bold -pointsize 70 -fill "#f7931a" -annotate +0-20 "$STARS" \
+  -font DejaVu-Sans-Bold -pointsize 48 -fill "#ffffff" -annotate +0+60 "TRUSTED BY" \
+  -font DejaVu-Sans-Bold -pointsize 46 -fill "#f7931a" -annotate +0+128 "$BY" \
+  -font DejaVu-Sans -pointsize 28 -fill "#888888" -annotate +0+195 "MercaSats" \
+  "$OUT"
+rm -f "$RAW" "$CIRCLE"
+`;
+  execFile('sh', ['-c', script], {
+    timeout: 12000,
+    env: { ...process.env, PICURL: pic, RAW: raw, CIRCLE: circle, OUT: file, STARS: starStr, BY: by },
+  }, (err) => {
+    if (err) { console.error('[badge-img]', err.message); return res.status(500).end(); }
+    res.type('png').sendFile(file);
+  });
+});
+
+// --- Publish signed NIP-58 badge events (30009 definition / 8 award / 5 deletion) to relays ---
+app.post('/api/badge', async (req, res) => {
+  const { events } = req.body;
+  if (!Array.isArray(events) || !events.length || events.length > 3) {
+    return res.status(400).json({ error: 'events[] (1-3) required' });
+  }
+  const { verifyEvent } = require('nostr-tools/pure');
+  for (const ev of events) {
+    if (!ev || !ev.sig || !ev.id || ![8, 30009, 5].includes(ev.kind)) {
+      return res.status(400).json({ error: 'bad or unsupported event kind' });
+    }
+    let ok = false;
+    try { ok = verifyEvent(ev); } catch (e) {}
+    if (!ok) return res.status(400).json({ error: 'invalid signature' });
+  }
+  const published = [];
+  for (const ev of events) {
+    try { await publishToRelays(ev); published.push(ev.id); } catch (e) { console.error('[badge publish]', e.message); }
+  }
+  res.json({ ok: true, published });
 });
 
 // Detect hashtag-driven event regions in user-supplied text (title/description).
