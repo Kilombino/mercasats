@@ -8,6 +8,7 @@
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://mercasats.kilombino.com/termes">
   <link rel="icon" href="/favicon.ico">
+  <script src="/i18n.js" defer></script>
   <style>
     :root { --bg:#0f0f0f; --card:#181818; --orange:#f7931a; --text:#e8e8e8; --muted:#9a9a9a; --border:#2a2a2a; }
     * { box-sizing:border-box; }
@@ -29,49 +30,100 @@
 <body>
   <div class="wrap">
     <header>
-      <a href="/" title="Anar a Merca-sats"><img src="/photos/app-logo.png" alt="Merca-sats"></a>
-      <h1>Termes i condicions</h1>
+      <a href="/" title="Merca-sats"><img src="/photos/app-logo.png" alt="Merca-sats"></a>
+      <h1 data-pagelang="ca">Termes i condicions</h1>
+      <h1 data-pagelang="es" style="display:none">Términos y condiciones</h1>
+      <h1 data-pagelang="en" style="display:none">Terms &amp; conditions</h1>
       <p class="tagline">Merca-sats · mercat P2P de Trobades Bitcoiners</p>
-      <p class="upd">Última actualització: juny de 2026</p>
+      <p class="upd"><span data-pagelang="ca">Última actualització: juny de 2026</span><span data-pagelang="es" style="display:none">Última actualización: junio de 2026</span><span data-pagelang="en" style="display:none">Last updated: June 2026</span></p>
     </header>
 
-    <div class="note">En resum: Merca-sats és <strong>només un tauler d'anuncis</strong> que posa en contacte persones. <strong>No custodiem diners, no gestionem pagaments i no participem en cap transacció.</strong> Cada tracte és responsabilitat exclusiva de les parts.</div>
+    <!-- CA -->
+    <div data-pagelang="ca">
+      <div class="note">En resum: Merca-sats és <strong>només un tauler d'anuncis</strong> que posa en contacte persones. <strong>No custodiem diners, no gestionem pagaments i no participem en cap transacció.</strong> Cada tracte és responsabilitat exclusiva de les parts.</div>
+      <h2>1. Naturalesa del servei</h2>
+      <p>Merca-sats és un projecte sense ànim de lucre que ofereix un <strong>tauler d'anuncis classificats</strong> per posar en contacte compradors i venedors de béns i serveis lícits, amb preus en bitcoin. El servei es limita a publicar i mostrar anuncis a través de la web, l'aplicació, la xarxa Nostr i Telegram.</p>
+      <h2>2. Què NO és Merca-sats</h2>
+      <p>No custodiem ni tenim accés als fons dels usuaris. No processem ni garantim cap pagament. No participem en la negociació, l'enviament ni el lliurament. No verifiquem la identitat real ni les intencions dels usuaris.</p>
+      <h2>3. Responsabilitat de les parts</h2>
+      <p>Tota transacció s'acorda i s'executa <strong>directament i exclusivament entre comprador i venedor</strong>, sota la seva única responsabilitat, incloses les obligacions fiscals. Merca-sats no es fa responsable de tractes insatisfets, fraus, incompliments ni de la qualitat o legalitat dels béns anunciats.</p>
+      <h2>4. Continguts prohibits</h2>
+      <p>Queda prohibit publicar béns o serveis il·legals segons la legislació espanyola, així com contingut fraudulent o que infringeixi drets de tercers. Merca-sats pot retirar qualsevol anunci inadequat sense justificació.</p>
+      <h2>5. Identitat i pseudonímia</h2>
+      <p>Merca-sats funciona amb identitats <strong>pseudònimes</strong> basades en claus de Nostr. No requerim dades d'identificació personal. La reputació es basa en l'activitat pública a Nostr i no constitueix cap garantia.</p>
+      <h2>6. Limitació de responsabilitat</h2>
+      <p>El servei s'ofereix «tal com és», sense garanties. En la mesura permesa per la llei, Merca-sats queda exempt de responsabilitat per danys derivats de l'ús del servei o de les transaccions entre usuaris.</p>
+      <h2>7. Protecció de dades</h2>
+      <p>No recollim dades personals més enllà de la informació pública que cada usuari publica amb la seva clau de Nostr. No cedim dades a tercers amb finalitats comercials.</p>
+      <h2>8. Legislació aplicable</h2>
+      <p>Aquests termes es regeixen per la legislació espanyola. L'ús del servei implica l'acceptació d'aquestes condicions.</p>
+      <div class="note" style="border-left-color:var(--muted)">Aquest text és un descàrrec de responsabilitat de caràcter general i no constitueix assessorament jurídic professional.</div>
+    </div>
 
-    <h2>1. Naturalesa del servei</h2>
-    <p>Merca-sats és un projecte sense ànim de lucre que ofereix un <strong>tauler d'anuncis classificats</strong> per posar en contacte compradors i venedors de béns i serveis lícits, amb preus denominats en bitcoin. El servei es limita a publicar i mostrar anuncis a través de la web, l'aplicació, la xarxa Nostr i Telegram.</p>
+    <!-- ES -->
+    <div data-pagelang="es" style="display:none">
+      <div class="note">En resumen: Merca-sats es <strong>solo un tablón de anuncios</strong> que pone en contacto a personas. <strong>No custodiamos dinero, no gestionamos pagos y no participamos en ninguna transacción.</strong> Cada trato es responsabilidad exclusiva de las partes.</div>
+      <h2>1. Naturaleza del servicio</h2>
+      <p>Merca-sats es un proyecto sin ánimo de lucro que ofrece un <strong>tablón de anuncios clasificados</strong> para poner en contacto a compradores y vendedores de bienes y servicios lícitos, con precios en bitcoin. El servicio se limita a publicar y mostrar anuncios a través de la web, la aplicación, la red Nostr y Telegram.</p>
+      <h2>2. Qué NO es Merca-sats</h2>
+      <p>No custodiamos ni tenemos acceso a los fondos de los usuarios. No procesamos ni garantizamos ningún pago. No participamos en la negociación, el envío ni la entrega. No verificamos la identidad real ni las intenciones de los usuarios.</p>
+      <h2>3. Responsabilidad de las partes</h2>
+      <p>Toda transacción se acuerda y ejecuta <strong>directa y exclusivamente entre comprador y vendedor</strong>, bajo su única responsabilidad, incluidas las obligaciones fiscales. Merca-sats no se hace responsable de tratos insatisfechos, fraudes, incumplimientos ni de la calidad o legalidad de los bienes anunciados.</p>
+      <h2>4. Contenidos prohibidos</h2>
+      <p>Queda prohibido publicar bienes o servicios ilegales según la legislación española, así como contenido fraudulento o que infrinja derechos de terceros. Merca-sats puede retirar cualquier anuncio inadecuado sin justificación.</p>
+      <h2>5. Identidad y pseudonimia</h2>
+      <p>Merca-sats funciona con identidades <strong>pseudónimas</strong> basadas en claves de Nostr. No requerimos datos de identificación personal. La reputación se basa en la actividad pública en Nostr y no constituye ninguna garantía.</p>
+      <h2>6. Limitación de responsabilidad</h2>
+      <p>El servicio se ofrece «tal cual», sin garantías. En la medida permitida por la ley, Merca-sats queda exento de responsabilidad por daños derivados del uso del servicio o de las transacciones entre usuarios.</p>
+      <h2>7. Protección de datos</h2>
+      <p>No recogemos datos personales más allá de la información pública que cada usuario publica con su clave de Nostr. No cedemos datos a terceros con fines comerciales.</p>
+      <h2>8. Legislación aplicable</h2>
+      <p>Estos términos se rigen por la legislación española. El uso del servicio implica la aceptación de estas condiciones.</p>
+      <div class="note" style="border-left-color:var(--muted)">Este texto es un descargo de responsabilidad de carácter general y no constituye asesoramiento jurídico profesional.</div>
+    </div>
 
-    <h2>2. Què NO és Merca-sats</h2>
-    <p>Merca-sats <strong>no és una botiga, ni un marketplace amb intermediació, ni una passarel·la de pagament</strong>. En particular:</p>
-    <p>• No custodiem ni tenim accés en cap moment als fons dels usuaris.<br>
-       • No processem, intermediem ni garantim cap pagament.<br>
-       • No participem en la negociació, l'enviament ni el lliurament dels béns o serveis.<br>
-       • No verifiquem la identitat real, la solvència ni les intencions dels usuaris.</p>
+    <!-- EN -->
+    <div data-pagelang="en" style="display:none">
+      <div class="note">In short: Merca-sats is <strong>only a classified-ads board</strong> that puts people in touch. <strong>We do not hold money, do not process payments and do not take part in any transaction.</strong> Every deal is the sole responsibility of the parties.</div>
+      <h2>1. Nature of the service</h2>
+      <p>Merca-sats is a non-profit project offering a <strong>classified-ads board</strong> to connect buyers and sellers of lawful goods and services, priced in bitcoin. The service is limited to publishing and displaying listings via the web, the app, the Nostr network and Telegram.</p>
+      <h2>2. What Merca-sats is NOT</h2>
+      <p>We do not hold or access users' funds. We do not process or guarantee any payment. We do not take part in negotiation, shipping or delivery. We do not verify users' real identity or intentions.</p>
+      <h2>3. Responsibility of the parties</h2>
+      <p>Every transaction is agreed and carried out <strong>directly and solely between buyer and seller</strong>, under their sole responsibility, including tax obligations. Merca-sats is not liable for unsatisfactory deals, fraud, breaches, or the quality or legality of the goods listed.</p>
+      <h2>4. Prohibited content</h2>
+      <p>Posting goods or services that are illegal under Spanish law is prohibited, as is fraudulent content or content infringing third-party rights. Merca-sats may remove any inappropriate listing without justification.</p>
+      <h2>5. Identity and pseudonymity</h2>
+      <p>Merca-sats works with <strong>pseudonymous</strong> identities based on Nostr keys. We do not require personal identification data. Reputation is based on public Nostr activity and is no guarantee.</p>
+      <h2>6. Limitation of liability</h2>
+      <p>The service is provided "as is", without warranties. To the extent permitted by law, Merca-sats is exempt from liability for damages arising from use of the service or from transactions between users.</p>
+      <h2>7. Data protection</h2>
+      <p>We do not collect personal data beyond the public information each user publishes with their Nostr key. We do not share data with third parties for commercial purposes.</p>
+      <h2>8. Applicable law</h2>
+      <p>These terms are governed by Spanish law. Use of the service implies acceptance of these conditions.</p>
+      <div class="note" style="border-left-color:var(--muted)">This text is a general disclaimer and does not constitute professional legal advice.</div>
+    </div>
 
-    <h2>3. Responsabilitat de les parts</h2>
-    <p>Tota transacció s'acorda i s'executa <strong>directament i exclusivament entre comprador i venedor</strong>, sota la seva única responsabilitat. Cada usuari és responsable de complir la legislació aplicable, incloses les obligacions fiscals que es derivin de les seves operacions. Merca-sats no es fa responsable de tractes insatisfets, fraus, incompliments, defectes, ni de la qualitat, legalitat o existència dels béns i serveis anunciats.</p>
-
-    <h2>4. Continguts i productes prohibits</h2>
-    <p>Queda prohibit publicar anuncis de béns o serveis il·legals segons la legislació espanyola, així com qualsevol contingut fraudulent, falsejat o que infringeixi drets de tercers. Merca-sats pot retirar qualsevol anunci que consideri inadequat, sense necessitat de justificació.</p>
-
-    <h2>5. Identitat i pseudonímia</h2>
-    <p>Merca-sats funciona amb identitats <strong>pseudònimes</strong> basades en claus de Nostr. No requerim ni recollim dades d'identificació personal. La reputació i les valoracions es basen en l'activitat pública a Nostr i no constitueixen cap garantia per part de Merca-sats.</p>
-
-    <h2>6. Limitació de responsabilitat</h2>
-    <p>El servei s'ofereix «tal com és», sense garanties de cap mena. En la mesura permesa per la llei, Merca-sats i els seus responsables queden exempts de qualsevol responsabilitat per danys directes o indirectes derivats de l'ús del servei o de les transaccions entre usuaris. Les disputes repercuteixen únicament en la reputació de l'anunciant.</p>
-
-    <h2>7. Protecció de dades</h2>
-    <p>Merca-sats no recull dades personals més enllà de la informació pública que cada usuari decideixi publicar a través de la seva clau de Nostr (nom, foto, anuncis). No es cedeixen dades a tercers amb finalitats comercials.</p>
-
-    <h2>8. Legislació aplicable</h2>
-    <p>Aquests termes es regeixen per la legislació espanyola. L'ús del servei implica l'acceptació íntegra d'aquestes condicions.</p>
-
-    <div class="note" style="border-left-color:var(--muted)">Aquest text és un descàrrec de responsabilitat de caràcter general i no constitueix assessorament jurídic professional.</div>
-
-    <a class="cta" href="/">Tornar a Merca-sats →</a>
+    <a class="cta" href="/"><span data-pagelang="ca">Tornar a Merca-sats →</span><span data-pagelang="es" style="display:none">Volver a Merca-sats →</span><span data-pagelang="en" style="display:none">Back to Merca-sats →</span></a>
 
     <footer>
       Merca-sats · <a href="/que-es">Què és</a> · <a href="/zones">Zones</a> · <a href="/meetups">Meetups</a>
     </footer>
   </div>
+
+  <script>
+    function showPageLang() {
+      var l = (window.tLang && window.tLang()) || localStorage.getItem('mercasats_lang') || 'ca';
+      document.querySelectorAll('[data-pagelang]').forEach(function (d) {
+        d.style.display = (d.getAttribute('data-pagelang') === l) ? '' : 'none';
+      });
+      document.documentElement.lang = l;
+    }
+    window.addEventListener('load', function () {
+      if (window.setLang) { var orig = window.setLang; window.setLang = function (x) { orig(x); showPageLang(); }; }
+      showPageLang();
+    });
+    document.addEventListener('DOMContentLoaded', showPageLang);
+  </script>
 </body>
 </html>
