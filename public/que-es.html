@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="ca">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>¿Qué es Merca-sats? Marketplace Bitcoin Lightning P2P</title>
-  <meta name="description" content="Merca-sats es un mercado P2P para comprar y vender productos y servicios pagando en Bitcoin por Lightning, sin intermediarios, en Catalunya y España. Disponible en web, app Android y Telegram.">
+  <meta name="description" content="Merca-sats es un mercado P2P para comprar y vender productos y servicios pagando en Bitcoin por Lightning, sin intermediarios, en Catalunya y España. Web, app Android y Telegram.">
   <meta name="keywords" content="qué es mercasats, marketplace bitcoin, comprar con bitcoin, vender por lightning, mercado P2P sats, bitcoin Catalunya, bitcoin España">
   <meta name="robots" content="index, follow">
   <link rel="canonical" href="https://mercasats.kilombino.com/que-es">
@@ -14,6 +14,7 @@
   <meta property="og:image" content="https://mercasats.kilombino.com/photos/app-logo.png">
   <meta property="og:url" content="https://mercasats.kilombino.com/que-es">
   <link rel="icon" href="/favicon.ico">
+  <script src="/i18n.js" defer></script>
   <style>
     :root { --bg:#0f0f0f; --card:#181818; --orange:#f7931a; --text:#e8e8e8; --muted:#9a9a9a; --border:#2a2a2a; }
     * { box-sizing:border-box; }
@@ -38,52 +39,118 @@
 <body>
   <div class="wrap">
     <header>
-      <a href="/" title="Ir a Merca-sats"><img src="/photos/app-logo.png" alt="Logo de Merca-sats"></a>
-      <h1>¿Qué es Merca-sats?</h1>
-      <p class="tagline">El mercado bitcoiner de Catalunya y España</p>
+      <a href="/" title="Merca-sats"><img src="/photos/app-logo.png" alt="Logo de Merca-sats"></a>
     </header>
 
-    <p><strong>Merca-sats</strong> es un mercado entre particulares (P2P) para <strong>comprar y vender productos y servicios pagando en Bitcoin</strong> a través de la red Lightning. Conecta directamente a comprador y vendedor, <strong>sin intermediarios</strong> y sin custodios: tú tienes tus sats y tratas cara a cara con la otra persona. Nació en la comunidad bitcoiner de Catalunya y está abierto a toda España.</p>
-
-    <h2>Formas de usarlo</h2>
-    <div class="ways">
-      <div class="way"><b>🌐 Web</b><br>Entra en <a href="/">mercasats.kilombino.com</a> desde cualquier navegador.</div>
-      <div class="way"><b>📱 App Android</b><br>Instálala desde <a href="https://zapstore.dev/apps/com.kilombino.mercasats" rel="noopener">Zapstore</a> buscando «Mercasats».</div>
-      <div class="way"><b>💬 Telegram</b><br>Los anuncios se publican automáticamente en el canal de <a href="https://t.me/trobadesbitcoiners/2106" rel="noopener">Telegram</a> de la comunidad.</div>
+    <!-- ===== CATALÀ ===== -->
+    <div data-pagelang="ca">
+      <h1>Què és Merca-sats?</h1>
+      <p class="tagline">El mercat bitcoiner de Catalunya i Espanya</p>
+      <p><strong>Merca-sats</strong> és un mercat entre particulars (P2P) per <strong>comprar i vendre productes i serveis pagant en Bitcoin</strong> a través de la xarxa Lightning. Connecta directament comprador i venedor, <strong>sense intermediaris</strong> i sense custodis: tu tens els teus sats i tractes cara a cara amb l'altra persona. Va néixer a la comunitat bitcoiner de Catalunya i està obert a tot Espanya.</p>
+      <h2>Formes d'usar-lo</h2>
+      <div class="ways">
+        <div class="way"><b>🌐 Web</b><br>Entra a <a href="/">mercasats.kilombino.com</a> des de qualsevol navegador.</div>
+        <div class="way"><b>📱 App Android</b><br>Instal·la-la des de <a href="https://zapstore.dev/apps/com.kilombino.mercasats" rel="noopener">Zapstore</a> buscant «Mercasats».</div>
+        <div class="way"><b>💬 Telegram</b><br>Els anuncis es publiquen automàticament al canal de <a href="https://t.me/trobadesbitcoiners/2106" rel="noopener">Telegram</a> de la comunitat.</div>
+      </div>
+      <h2>Com funciona</h2>
+      <h3>1. Publica el teu anunci</h3>
+      <p>T'identifiques amb la teva clau de <strong>Nostr</strong> (per exemple amb l'app Amber o una extensió de navegador), poses títol, foto, preu en sats o euros, categoria i zona, i ja està. El teu anunci queda signat per tu i es propaga a la xarxa Nostr.</p>
+      <h3>2. Troba el que busques</h3>
+      <p>Filtra per <strong>zona</strong> en un mapa geogràfic i per <strong>categoria</strong>. Cada anunci mostra el contacte del venedor i, si ho indica, les seves opcions d'enviament.</p>
+      <h3>3. Paga en sats per Lightning</h3>
+      <p>Acordes amb el venedor i pagues en <strong>Bitcoin per Lightning</strong>, de manera instantània i amb comissions mínimes. Sense bancs, sense KYC i sense intermediaris.</p>
+      <h2>Preguntes freqüents</h2>
+      <div class="faq">
+        <h3>Necessito un compte?</h3><p>Per comprar i mirar, no. Per publicar anuncis necessites una identitat de Nostr (gratis, la crees en segons amb Amber o una altra app).</p>
+        <h3>Com es paga?</h3><p>En Bitcoin a través de la xarxa Lightning. El pagament és directe entre comprador i venedor; Merca-sats no custodia fons.</p>
+        <h3>Té comissions?</h3><p>Merca-sats no cobra comissió per anunciar ni per vendre. Només pagues la comissió mínima de la xarxa Lightning.</p>
+        <h3>És segur?</h3><p>Els anuncis estan signats criptogràficament pel seu autor a Nostr, així que no es poden falsificar. Com en qualsevol tracte P2P, la confiança la verifiques tu. <em>Don't trust, verify.</em></p>
+        <h3>Què és Nostr?</h3><p>Un protocol obert i descentralitzat d'identitat i publicació. El teu anunci no depèn d'un servidor central: viu a la xarxa i el controles amb la teva clau.</p>
+        <h3>On funciona?</h3><p>Pensat per a Catalunya i la resta d'Espanya, organitzat per zones.</p>
+      </div>
     </div>
 
-    <h2>Cómo funciona</h2>
-    <h3>1. Publica tu anuncio</h3>
-    <p>Te identificas con tu clave de <strong>Nostr</strong> (por ejemplo con la app Amber o una extensión de navegador), pones título, foto, precio en sats o euros, categoría y zona, y listo. Tu anuncio queda firmado por ti y se propaga a la red Nostr.</p>
-    <h3>2. Encuentra lo que buscas</h3>
-    <p>Filtra por <strong>zona</strong> en un mapa geográfico y por <strong>categoría</strong> (informática, alimentación, bitcoin &amp; hardware, ropa, servicios, vehículos…). Cada anuncio muestra el contacto del vendedor y, si lo indica, sus opciones de envío.</p>
-    <h3>3. Paga en sats por Lightning</h3>
-    <p>Acuerdas con el vendedor y pagas en <strong>Bitcoin por Lightning</strong>, de forma instantánea y con comisiones mínimas. Sin bancos, sin KYC y sin intermediarios que se queden con una parte.</p>
-
-    <h2>Preguntas frecuentes</h2>
-    <div class="faq">
-      <h3>¿Necesito una cuenta?</h3>
-      <p>Para comprar y mirar, no. Para publicar anuncios necesitas una identidad de Nostr (gratis, la creas en segundos con Amber u otra app).</p>
-      <h3>¿Cómo se paga?</h3>
-      <p>En Bitcoin a través de la red Lightning. El pago es directo entre comprador y vendedor; Merca-sats no custodia fondos.</p>
-      <h3>¿Tiene comisiones?</h3>
-      <p>Merca-sats no cobra comisión por anunciar ni por vender. Solo pagas la comisión mínima de la red Lightning en cada transacción.</p>
-      <h3>¿Es seguro?</h3>
-      <p>Los anuncios están firmados criptográficamente por su autor en Nostr, así que no se pueden falsificar. Como en cualquier trato P2P, la confianza la verificas tú con la otra parte. <em>Don't trust, verify.</em></p>
-      <h3>¿Qué es Nostr?</h3>
-      <p>Un protocolo abierto y descentralizado de identidad y publicación. Tu anuncio no depende de un servidor central: vive en la red y lo controlas con tu clave.</p>
-      <h3>¿Dónde funciona?</h3>
-      <p>Está pensado para Catalunya y el resto de España, organizado por zonas. Puedes filtrar por la tuya o vender con envío a península e islas.</p>
+    <!-- ===== ESPAÑOL ===== -->
+    <div data-pagelang="es" style="display:none">
+      <h1>¿Qué es Merca-sats?</h1>
+      <p class="tagline">El mercado bitcoiner de Catalunya y España</p>
+      <p><strong>Merca-sats</strong> es un mercado entre particulares (P2P) para <strong>comprar y vender productos y servicios pagando en Bitcoin</strong> a través de la red Lightning. Conecta directamente a comprador y vendedor, <strong>sin intermediarios</strong> y sin custodios: tú tienes tus sats y tratas cara a cara con la otra persona. Nació en la comunidad bitcoiner de Catalunya y está abierto a toda España.</p>
+      <h2>Formas de usarlo</h2>
+      <div class="ways">
+        <div class="way"><b>🌐 Web</b><br>Entra en <a href="/">mercasats.kilombino.com</a> desde cualquier navegador.</div>
+        <div class="way"><b>📱 App Android</b><br>Instálala desde <a href="https://zapstore.dev/apps/com.kilombino.mercasats" rel="noopener">Zapstore</a> buscando «Mercasats».</div>
+        <div class="way"><b>💬 Telegram</b><br>Los anuncios se publican automáticamente en el canal de <a href="https://t.me/trobadesbitcoiners/2106" rel="noopener">Telegram</a> de la comunidad.</div>
+      </div>
+      <h2>Cómo funciona</h2>
+      <h3>1. Publica tu anuncio</h3>
+      <p>Te identificas con tu clave de <strong>Nostr</strong> (por ejemplo con la app Amber o una extensión de navegador), pones título, foto, precio en sats o euros, categoría y zona, y listo. Tu anuncio queda firmado por ti y se propaga a la red Nostr.</p>
+      <h3>2. Encuentra lo que buscas</h3>
+      <p>Filtra por <strong>zona</strong> en un mapa geográfico y por <strong>categoría</strong>. Cada anuncio muestra el contacto del vendedor y, si lo indica, sus opciones de envío.</p>
+      <h3>3. Paga en sats por Lightning</h3>
+      <p>Acuerdas con el vendedor y pagas en <strong>Bitcoin por Lightning</strong>, de forma instantánea y con comisiones mínimas. Sin bancos, sin KYC y sin intermediarios.</p>
+      <h2>Preguntas frecuentes</h2>
+      <div class="faq">
+        <h3>¿Necesito una cuenta?</h3><p>Para comprar y mirar, no. Para publicar anuncios necesitas una identidad de Nostr (gratis, la creas en segundos con Amber u otra app).</p>
+        <h3>¿Cómo se paga?</h3><p>En Bitcoin a través de la red Lightning. El pago es directo entre comprador y vendedor; Merca-sats no custodia fondos.</p>
+        <h3>¿Tiene comisiones?</h3><p>Merca-sats no cobra comisión por anunciar ni por vender. Solo pagas la comisión mínima de la red Lightning.</p>
+        <h3>¿Es seguro?</h3><p>Los anuncios están firmados criptográficamente por su autor en Nostr, así que no se pueden falsificar. Como en cualquier trato P2P, la confianza la verificas tú. <em>Don't trust, verify.</em></p>
+        <h3>¿Qué es Nostr?</h3><p>Un protocolo abierto y descentralizado de identidad y publicación. Tu anuncio no depende de un servidor central: vive en la red y lo controlas con tu clave.</p>
+        <h3>¿Dónde funciona?</h3><p>Pensado para Catalunya y el resto de España, organizado por zonas.</p>
+      </div>
     </div>
 
-    <a href="/" title="Entrar a Merca-sats" style="display:block;width:180px;margin:40px auto 0">
-      <img src="/photos/app-logo.png" alt="Entrar a Merca-sats" style="width:180px;height:180px;border-radius:22px;box-shadow:0 0 30px rgba(247,147,26,0.4)">
+    <!-- ===== ENGLISH ===== -->
+    <div data-pagelang="en" style="display:none">
+      <h1>What is Merca-sats?</h1>
+      <p class="tagline">The bitcoiner marketplace of Catalonia and Spain</p>
+      <p><strong>Merca-sats</strong> is a peer-to-peer (P2P) marketplace to <strong>buy and sell goods and services paying in Bitcoin</strong> over the Lightning network. It connects buyer and seller directly, <strong>with no middlemen</strong> and no custodians: you hold your sats and deal face to face. It was born in the Catalan bitcoiner community and is open to all of Spain.</p>
+      <h2>Ways to use it</h2>
+      <div class="ways">
+        <div class="way"><b>🌐 Web</b><br>Go to <a href="/">mercasats.kilombino.com</a> from any browser.</div>
+        <div class="way"><b>📱 Android app</b><br>Install it from <a href="https://zapstore.dev/apps/com.kilombino.mercasats" rel="noopener">Zapstore</a> by searching «Mercasats».</div>
+        <div class="way"><b>💬 Telegram</b><br>Listings are auto-published to the community <a href="https://t.me/trobadesbitcoiners/2106" rel="noopener">Telegram</a> channel.</div>
+      </div>
+      <h2>How it works</h2>
+      <h3>1. Post your listing</h3>
+      <p>You identify with your <strong>Nostr</strong> key (e.g. with the Amber app or a browser extension), set a title, photo, price in sats or euros, category and area, and that's it. Your listing is signed by you and propagated to the Nostr network.</p>
+      <h3>2. Find what you need</h3>
+      <p>Filter by <strong>area</strong> on a geographic map and by <strong>category</strong>. Each listing shows the seller's contact and, if stated, their shipping options.</p>
+      <h3>3. Pay in sats over Lightning</h3>
+      <p>You agree with the seller and pay in <strong>Bitcoin over Lightning</strong>, instantly and with minimal fees. No banks, no KYC, no middlemen.</p>
+      <h2>FAQ</h2>
+      <div class="faq">
+        <h3>Do I need an account?</h3><p>To browse and buy, no. To post listings you need a Nostr identity (free, created in seconds with Amber or another app).</p>
+        <h3>How do I pay?</h3><p>In Bitcoin over the Lightning network. Payment is direct between buyer and seller; Merca-sats holds no funds.</p>
+        <h3>Are there fees?</h3><p>Merca-sats charges no fee for posting or selling. You only pay the minimal Lightning network fee.</p>
+        <h3>Is it safe?</h3><p>Listings are cryptographically signed by their author on Nostr, so they cannot be forged. As with any P2P deal, you verify trust yourself. <em>Don't trust, verify.</em></p>
+        <h3>What is Nostr?</h3><p>An open, decentralized identity and publishing protocol. Your listing doesn't depend on a central server: it lives on the network and you control it with your key.</p>
+        <h3>Where does it work?</h3><p>Made for Catalonia and the rest of Spain, organized by areas.</p>
+      </div>
+    </div>
+
+    <a href="/" title="Merca-sats" style="display:block;width:180px;margin:40px auto 0">
+      <img src="/photos/app-logo.png" alt="Merca-sats" style="width:180px;height:180px;border-radius:22px;box-shadow:0 0 30px rgba(247,147,26,0.4)">
     </a>
 
     <footer>
-      Merca-sats · mercado P2P Bitcoin ⚡ Lightning ·
-      <a href="/zones">Zonas</a> · <a href="/meetups">Meetups</a>
+      Merca-sats · <a href="/termes">Termes</a> · <a href="/zones">Zones</a> · <a href="/meetups">Meetups</a>
     </footer>
   </div>
+
+  <script>
+    function showPageLang() {
+      var l = (window.tLang && window.tLang()) || localStorage.getItem('mercasats_lang') || 'ca';
+      document.querySelectorAll('[data-pagelang]').forEach(function (d) {
+        d.style.display = (d.getAttribute('data-pagelang') === l) ? '' : 'none';
+      });
+      document.documentElement.lang = l;
+    }
+    window.addEventListener('load', function () {
+      if (window.setLang) { var orig = window.setLang; window.setLang = function (x) { orig(x); showPageLang(); }; }
+      showPageLang();
+    });
+    document.addEventListener('DOMContentLoaded', showPageLang);
+  </script>
 </body>
 </html>
