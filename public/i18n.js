@@ -53,10 +53,13 @@
     'Només península': { es: 'Solo península', en: 'Mainland only' },
     'Península i illes': { es: 'Península e islas', en: 'Mainland and islands' },
     'Internacional': { es: 'Internacional', en: 'International' },
-    // Trust badge (relatr web-of-trust)
-    'Confiança: Alta': { es: 'Confianza: Alta', en: 'Trust: High' },
-    'Confiança: Mitjana': { es: 'Confianza: Media', en: 'Trust: Medium' },
-    'Confiança: Baixa': { es: 'Confianza: Baja', en: 'Trust: Low' },
+    // Trust badge (Nostr key reputation)
+    'Reputació de la clau Nostr: Alta': { es: 'Reputación de su llave Nostr: Alta', en: 'Nostr key reputation: High' },
+    'Reputació de la clau Nostr: Mitjana': { es: 'Reputación de su llave Nostr: Media', en: 'Nostr key reputation: Medium' },
+    'Reputació de la clau Nostr: Baixa': { es: 'Reputación de su llave Nostr: Baja', en: 'Nostr key reputation: Low' },
+    'Alta': { es: 'Alta', en: 'High' },
+    'Mitjana': { es: 'Media', en: 'Medium' },
+    'Baixa': { es: 'Baja', en: 'Low' },
     // Trust breakdown labels
     'Zaps rebuts': { es: 'Zaps recibidos', en: 'Zaps received' },
     'Zaps enviats': { es: 'Zaps enviados', en: 'Zaps sent' },
