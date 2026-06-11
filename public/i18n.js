@@ -60,6 +60,7 @@
     'Alta': { es: 'Alta', en: 'High' },
     'Mitjana': { es: 'Media', en: 'Medium' },
     'Baixa': { es: 'Baja', en: 'Low' },
+    'Reputació de la clau Nostr: sense dades encara': { es: 'Reputación de su llave Nostr: sin datos aún', en: 'Nostr key reputation: no data yet' },
     // Trust breakdown labels
     'Zaps rebuts': { es: 'Zaps recibidos', en: 'Zaps received' },
     'Zaps enviats': { es: 'Zaps enviados', en: 'Zaps sent' },

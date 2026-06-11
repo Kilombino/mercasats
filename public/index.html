@@ -483,7 +483,7 @@
 <div class="header">
   <div class="header-inner">
     <div class="header-side header-left">
-      <h4>🟠 Què és Merca-sats?</h4>
+      <h4><a href="/que-es" style="color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer">🟠 Què és Merca-sats?</a></h4>
       <p>Organitzador d'anuncis de béns i serveis per bitcoin a Catalunya. Connectem compradors i venedors de <a href="https://t.me/trobadesbitcoiners" target="_blank">Trobades Bitcoiners</a> a través de nostr, la web, l'app i Telegram. Pagaments directes entre parts, en bitcoin o sats.</p>
     </div>
     <div class="header-center">
@@ -492,7 +492,7 @@
       <p>Mercat P2P de Trobades Bitcoiners</p>
     </div>
     <div class="header-side header-right">
-      <h4>📋 Termes i condicions</h4>
+      <h4><a href="/termes" style="color:inherit;text-decoration:underline;text-underline-offset:3px;cursor:pointer">📋 Termes i condicions</a></h4>
       <p>Projecte sense ànim de lucre. Únic objectiu: posar en contacte compradors i venedors d'acord amb les lleis d'Espanya. No participem en transaccions ni gestionem pagaments. No ens fem responsables de tractes insatisfets. Les disputes repercuteixen en la reputació de l'anunciant. L'ús implica l'acceptació d'aquests termes.</p>
     </div>
   </div>
@@ -1925,7 +1925,10 @@ async function renderTrustDetail(npub) {
   }
   box.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center">🌐 Calculant confiança…</div>';
   const d = await loadTrust(npub);
-  if (!d || d.score === null || d.level === 'unknown') { box.innerHTML = ''; return; }
+  if (!d || d.score === null || d.level === 'unknown') {
+    box.innerHTML = '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--muted);font-size:13px;text-align:center">🌐 <span>Reputació de la clau Nostr: sense dades encara</span></div>';
+    return;
+  }
   const c = TRUST_COLOR[d.level] || '#95a5a6';
   const pct = Math.round((d.score || 0) * 100);
   box.innerHTML = `
