@@ -910,7 +910,7 @@ app.get('/api/trust/:npub', async (req, res) => {
   if (!hex && /^[0-9a-f]{64}$/i.test(req.params.npub)) hex = req.params.npub.toLowerCase();
   if (!hex || !/^[0-9a-f]{64}$/.test(hex)) return res.status(400).json({ error: 'invalid pubkey' });
   try {
-    const r = await fetch(`${RELATR_BRIDGE}/trust/${hex}`, { signal: AbortSignal.timeout(28000) });
+    const r = await fetch(`${RELATR_BRIDGE}/trust/${hex}`, { signal: AbortSignal.timeout(11000) });
     const d = await r.json();
     res.json({ score: d.score, level: trustLevel(d.score), components: d.components, cached: d.cached });
   } catch (e) {
