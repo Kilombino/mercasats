@@ -852,6 +852,7 @@
       <h3 id="ratingSeller"></h3>
       <div class="stars" id="ratingAvg"></div>
       <p id="ratingCount" style="color:var(--muted);font-size:13px"></p>
+      <p id="ratingAdCount" style="color:var(--accent);font-size:13px;font-weight:600;margin:2px 0 0"></p>
       <button class="modal-npub-btn" id="ratingNpubBtn" onclick="copyUserNpub()" style="display:none" title="Copiar npub d'aquest usuari">
         <img src="/amethyst-logo.svg" alt="" class="npub-btn-icon">
         <span>Copiar npub</span>
@@ -861,6 +862,7 @@
         <span id="ratingTelegramLabel">Telegram</span>
       </a>
     </div>
+    <div id="ratingAdsList" style="margin-bottom:8px"></div>
     <div id="ratingsList"></div>
     <div id="rateForm" style="display:none;margin-top:20px;border-top:1px solid var(--border);padding-top:20px">
       <h4 style="margin-bottom:10px">La teva valoració</h4>
@@ -1206,6 +1208,20 @@ async function openUserProfile(npub) {
     }
     document.getElementById('ratingAvg').textContent = '★'.repeat(Math.round(data.average)) + '☆'.repeat(5 - Math.round(data.average));
     document.getElementById('ratingCount').textContent = `${data.average}/5 (${data.count} valoracions)`;
+
+    // Quants anuncis actius té aquest usuari, amb llista clicable
+    const ads = Array.isArray(data.products) ? data.products : [];
+    document.getElementById('ratingAdCount').textContent = ads.length
+      ? `📦 ${ads.length} ${ads.length === 1 ? 'anunci actiu' : 'anuncis actius'}`
+      : '📦 Sense anuncis actius';
+    const curSym = c => c === 'sats' ? ' sats' : (String(c).toLowerCase() === 'eur' ? '€' : (c ? ' ' + c : ''));
+    document.getElementById('ratingAdsList').innerHTML = ads.map(p =>
+      `<div onclick="closeModal('ratingModal');openProductDetail(${p.id})" style="cursor:pointer;padding:7px 10px;border:1px solid var(--border);border-radius:8px;margin-bottom:5px;font-size:13px;display:flex;justify-content:space-between;gap:8px;align-items:center">
+        <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.title || '(sense títol)')}</span>
+        ${p.price ? `<span style="color:var(--accent);white-space:nowrap">${escapeHtml(String(p.price))}${escapeHtml(curSym(p.price_currency))}</span>` : ''}
+      </div>`
+    ).join('');
+
     renderTrustDetail(npub);
     document.getElementById('ratingsList').innerHTML = data.ratings.map(r => {
       const raterName = r.rater_name || r.rater_npub.substring(0, 8) + '...';
@@ -1923,20 +1939,46 @@ async function renderTrustDetail(npub) {
     box.style.cssText = 'margin:14px 0';
     listEl.parentElement.insertBefore(box, listEl);
   }
-  box.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center">🌐 Calculant confiança…</div>';
+  box.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center">📊 Calculant reputació…</div>';
   const d = await loadTrust(npub);
-  if (!d || d.score === null || d.level === 'unknown') {
-    box.innerHTML = '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--muted);font-size:13px;text-align:center">🌐 <span>Reputació de la clau Nostr: sense dades encara</span></div>';
+  const hasNostr = d && d.nostr && d.nostr.score !== null && d.nostr.level !== 'unknown';
+  const hasWeb = d && d.web && d.web.count > 0;
+  const hasOverall = d && d.score !== null && d.level !== 'unknown';
+  if (!hasOverall && !hasNostr && !hasWeb) {
+    box.innerHTML = '<div style="border:1px solid var(--border);border-radius:10px;padding:12px;color:var(--muted);font-size:13px;text-align:center">📊 <span>Reputació: sense dades encara</span></div>';
     return;
   }
-  const c = TRUST_COLOR[d.level] || '#95a5a6';
-  const pct = Math.round((d.score || 0) * 100);
-  box.innerHTML = `
-    <div style="border:1px solid ${c}66;border-radius:10px;padding:14px;background:${c}14;display:flex;align-items:center;gap:10px">
-      <span style="font-size:1.5em">🌐</span>
-      <span style="font-weight:${TRUST_WEIGHT[d.level] || 700};color:${c}"><span>${TRUST_TEXT[d.level]}</span></span>
-      <span style="font-weight:700;color:${c};font-size:1.35em;margin-left:auto">${pct}%</span>
+  const row = (icon, label, valHtml, color) => `
+    <div style="display:flex;align-items:center;gap:10px;border:1px solid ${color}55;border-radius:10px;padding:10px 12px;background:${color}10">
+      <span style="font-size:1.15em">${icon}</span>
+      <span style="font-size:13px;color:var(--text)"><span>${label}</span></span>
+      <span style="margin-left:auto;font-weight:700;color:${color};white-space:nowrap">${valHtml}</span>
     </div>`;
+  const oc = TRUST_COLOR[d.level] || '#95a5a6';
+  const opct = Math.round((d.score || 0) * 100);
+  let html = `
+    <div style="border:1px solid ${oc}66;border-radius:12px;padding:16px;background:${oc}14;text-align:center;margin-bottom:10px">
+      <div style="font-size:12px;color:var(--muted);letter-spacing:.6px;text-transform:uppercase"><span>Reputació</span></div>
+      <div style="font-size:2.3em;font-weight:800;color:${oc};line-height:1.05">${opct}%</div>
+      <div style="font-weight:700;color:${oc}"><span>${TRUST_LEVEL[d.level] || ''}</span></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px">`;
+  if (hasNostr) {
+    const nc = TRUST_COLOR[d.nostr.level] || '#95a5a6';
+    html += row('🌐', 'Reputació de la clau Nostr', `${Math.round(d.nostr.score * 100)}% · <span>${TRUST_LEVEL[d.nostr.level]}</span>`, nc);
+  } else {
+    html += row('🌐', 'Reputació de la clau Nostr', 'sense dades', '#9aa0a6');
+  }
+  if (hasWeb) {
+    const wc = TRUST_COLOR[d.web.level] || '#9aa0a6';
+    const rounded = Math.round(d.web.avg);
+    const stars = '★'.repeat(rounded) + '☆'.repeat(5 - rounded);
+    html += row('💬', 'Ressenyes MercaSats', `${stars} ${d.web.avg}/5 (${d.web.count})`, wc);
+  } else {
+    html += row('💬', 'Ressenyes MercaSats', 'sense ressenyes', '#9aa0a6');
+  }
+  html += '</div>';
+  box.innerHTML = html;
 }
 
 // Emit a NIP-58 trust badge (definition + award) signed by the rater, published via the backend.

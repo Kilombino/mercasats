@@ -173,11 +173,20 @@ function parseMessage(msg) {
     /^#[A-Za-zÀ-ÿ]+\s*$/.test(l);
   let titleSource = lines.find(l => !isMetaLine(l)) || lines[0] || '';
   if (isBotFormatMimicry(text)) {
-    const descLine = lines.find(l => /^📝\s*#DESCRIP/i.test(l));
-    if (descLine) {
-      titleSource = descLine.replace(/^📝\s*#DESCRIP\w*\s*/i, '').trim();
-    } else if (lines[1]) {
-      titleSource = lines[1];
+    // Title lives on the action line: "🛒 #VENDE <title>". Take the text after
+    // the action hashtag.
+    const actionLine = lines.find(l => /#(VEN[DT]|COMPR|SERVE?I|SERVICIO|REGAL)/i.test(l));
+    if (actionLine) {
+      const t = actionLine.replace(/^[^#]*#[A-Za-zÀ-ÿ]+\s*/, '').replace(/[*_`]/g, '').trim();
+      if (t) titleSource = t;
+    }
+    // Fallback: inline text on the 📝 #DESCRIPCION line, or the line right after it.
+    if (!titleSource.trim()) {
+      const di = lines.findIndex(l => /^📝\s*#DESCRIP/i.test(l));
+      if (di >= 0) {
+        const inline = lines[di].replace(/^📝\s*#DESCRIP\w*\s*/i, '').trim();
+        titleSource = inline || lines[di + 1] || '';
+      }
     }
   }
   const title = titleSource.length > 60 ? titleSource.substring(0, 57) + '...' : titleSource;

@@ -61,6 +61,13 @@
     'Mitjana': { es: 'Media', en: 'Medium' },
     'Baixa': { es: 'Baja', en: 'Low' },
     'Reputació de la clau Nostr: sense dades encara': { es: 'Reputación de su llave Nostr: sin datos aún', en: 'Nostr key reputation: no data yet' },
+    // Reputation breakdown (overall + components)
+    'Reputació': { es: 'Reputación', en: 'Reputation' },
+    'Reputació de la clau Nostr': { es: 'Reputación de su llave Nostr', en: 'Nostr key reputation' },
+    'Ressenyes MercaSats': { es: 'Reseñas MercaSats', en: 'MercaSats reviews' },
+    'Reputació: sense dades encara': { es: 'Reputación: sin datos aún', en: 'Reputation: no data yet' },
+    'sense dades': { es: 'sin datos', en: 'no data' },
+    'sense ressenyes': { es: 'sin reseñas', en: 'no reviews' },
     // Trust breakdown labels
     'Zaps rebuts': { es: 'Zaps recibidos', en: 'Zaps received' },
     'Zaps enviats': { es: 'Zaps enviados', en: 'Zaps sent' },

@@ -904,18 +904,41 @@ function trustLevel(s) {
   if (s >= 0.45) return 'medium';
   return 'low';
 }
+
+// Combina la confianza Nostr (relatr, 0..1) con las reseñas recibidas en la web
+// (estrellas 1..5). El peso de las reseñas crece con su número hasta un máximo
+// razonable (35%); sin reseñas, devuelve la confianza Nostr tal cual.
+const WEB_MAX_WEIGHT = 0.35, WEB_FULL_AT = 5, NOSTR_UNKNOWN_BASE = 0.3;
+function blendTrust(nostrScore, webAvg, webCount) {
+  const hasWeb = webCount > 0 && webAvg != null;
+  if (!hasWeb) return (nostrScore === undefined ? null : nostrScore);
+  const webNorm = Math.max(0, Math.min(1, (webAvg - 1) / 4));
+  const w = WEB_MAX_WEIGHT * Math.min(webCount, WEB_FULL_AT) / WEB_FULL_AT;
+  const base = (nostrScore == null) ? NOSTR_UNKNOWN_BASE : nostrScore; // Nostr desconocido = base neutra, no 0
+  return Math.round((base * (1 - w) + webNorm * w) * 1000) / 1000;
+}
 app.get('/api/trust/:npub', async (req, res) => {
   let hex = null;
   try { hex = npubToHex(req.params.npub); } catch (e) {}
   if (!hex && /^[0-9a-f]{64}$/i.test(req.params.npub)) hex = req.params.npub.toLowerCase();
   if (!hex || !/^[0-9a-f]{64}$/.test(hex)) return res.status(400).json({ error: 'invalid pubkey' });
+  // Confianza Nostr (relatr, cacheada en el bridge). Si el bridge falla, seguimos
+  // con solo las reseñas web para no dejar al usuario sin reputación.
+  let d = { score: null, components: null, cached: false };
   try {
     const r = await fetch(`${RELATR_BRIDGE}/trust/${hex}`, { signal: AbortSignal.timeout(11000) });
-    const d = await r.json();
-    res.json({ score: d.score, level: trustLevel(d.score), components: d.components, cached: d.cached });
-  } catch (e) {
-    res.json({ score: null, level: 'unknown', error: 'unavailable' });
-  }
+    d = await r.json();
+  } catch (e) { /* bridge no disponible */ }
+  let wr = { avg: null, count: 0 };
+  try { wr = db.prepare('SELECT AVG(stars) AS avg, COUNT(*) AS count FROM ratings WHERE rated_npub = ?').get(hex) || wr; } catch (e) {}
+  const score = blendTrust(d.score, wr.avg, wr.count);
+  const webNorm = (wr.count > 0 && wr.avg != null) ? Math.round(((wr.avg - 1) / 4) * 1000) / 1000 : null;
+  res.json({
+    score, level: trustLevel(score), components: d.components,
+    nostr: { score: d.score, level: trustLevel(d.score) },          // reputación de la clave Nostr (relatr)
+    web: { avg: wr.avg ? Math.round(wr.avg * 10) / 10 : null, count: wr.count || 0, score: webNorm, level: trustLevel(webNorm) }, // reseñas MercaSats
+    cached: d.cached
+  });
 });
 
 // --- Trust badge image generator (NIP-58): profile pic + stars + "TRUSTED BY <name>", cached ---
