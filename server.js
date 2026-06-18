@@ -316,6 +316,14 @@ app.get('/api/products', (req, res) => {
   res.json(products);
 });
 
+// Next product id. Reliable because products are soft-deleted (active=0), so
+// rowids are never reused. Lets the web client embed the canonical ?p=<id> link
+// inside the seller's own kind 30402 event, which is signed before the row exists.
+app.get('/api/products/peek-next-id', (req, res) => {
+  const row = db.prepare('SELECT MAX(id) AS m FROM products').get();
+  res.json({ nextId: (row?.m || 0) + 1 });
+});
+
 // Get single product
 app.get('/api/products/:id', (req, res) => {
   const product = db.prepare('SELECT * FROM products WHERE id = ? AND active = 1').get(req.params.id);

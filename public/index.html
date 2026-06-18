@@ -2116,6 +2116,15 @@ async function submitProduct() {
     const shipPrice = (document.getElementById('npShipPrice').value || '').trim();
     const shipTxt = shippingLine(shipOpt, shipPrice);
 
+    // Fetch the next product id so the seller's own event carries the canonical
+    // listing link at the end (the row doesn't exist yet; ids aren't reused
+    // thanks to soft-delete, so this matches the id the backend will assign).
+    let listingLink = '';
+    try {
+      const nr = await fetch(`${API}/api/products/peek-next-id`);
+      if (nr.ok) { const j = await nr.json(); if (j.nextId) listingLink = `\n\n🔗 https://mercasats.kilombino.com/?p=${j.nextId}`; }
+    } catch (_) {}
+
     // Sign a Nostr event as proof of authorship
     const productEvent = {
       kind: 30402, // NIP-99 classified listing
@@ -2130,7 +2139,7 @@ async function submitProduct() {
         ...photos.map(p => ['image', p.startsWith('http') ? p : `https://mercasats.kilombino.com${p}`]),
         ...(noExp ? [] : [['expiration', String(expirationTs)]]),
       ],
-      content: (desc || title) + (shipTxt ? '\n\n' + shipTxt : '')
+      content: (desc || title) + (shipTxt ? '\n\n' + shipTxt : '') + listingLink
     };
 
     let signedEvent;
@@ -2734,7 +2743,7 @@ async function submitEditProduct() {
         // photos as absolute-URL image tags (so the listing shows images on Nostr)
         ...((window._editPhotos || []).map(ph => ['image', ph.startsWith('http') ? ph : `https://mercasats.kilombino.com${ph}`])),
       ],
-      content: (description || title) + (shipTxt ? '\n\n' + shipTxt : ''),
+      content: (description || title) + (shipTxt ? '\n\n' + shipTxt : '') + `\n\n🔗 https://mercasats.kilombino.com/?p=${id}`,
     };
     const signed_event = await window.nostr.signEvent(event);
     if (!signed_event?.sig) { btn.disabled = false; return; }
