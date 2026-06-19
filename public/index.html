@@ -1055,6 +1055,16 @@ function changePage(delta) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
+// Format a SQLite 'YYYY-MM-DD HH:MM:SS' (UTC) timestamp as a short localized date.
+function fmtPublishDate(s) {
+  if (!s) return '';
+  const d = new Date(String(s).replace(' ', 'T') + 'Z');
+  if (isNaN(d)) return String(s);
+  const lang = localStorage.getItem('mercasats_lang') || 'ca';
+  const loc = lang === 'es' ? 'es-ES' : lang === 'en' ? 'en-GB' : 'ca-ES';
+  return d.toLocaleDateString(loc, { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
 function renderProducts() {
   const grid = document.getElementById('productsGrid');
   const pagBar = document.getElementById('paginationBar');
@@ -1111,6 +1121,7 @@ function renderProducts() {
             <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
               ${catText ? `<span class="product-source">${catText}</span>` : ''}
               ${regionText ? `<span style="font-size:12px">${regionText}</span>` : ''}
+              ${p.created_at ? `<span style="font-size:12px;color:var(--muted)" title="Data de publicació">📅 ${fmtPublishDate(p.created_at)}</span>` : ''}
               <span id="trust-card-${p.id}"></span>
             </div>
           </div>
@@ -2350,7 +2361,7 @@ async function openProductDetail(id) {
       ${coordsHtml}
       ${shipHtml}
       <span>${p.source === 'telegram' ? '📱 Telegram' : '🌐 Web'}</span> ·
-      <span>${p.created_at}</span>
+      <span title="Data de publicació">📅 ${fmtPublishDate(p.created_at)}</span>
     `;
 
     // Nostr event link
