@@ -443,6 +443,18 @@ async function poll() {
       try {
         const result = await postProduct(product);
         console.log(`[Scraper] Product created: ID ${result.id} - "${product.title}"`);
+        // Fix a copied listing link: sellers often paste a previous ad's template
+        // that carries a fixed "?p=<oldId>". Rewrite it to this ad's real id so the
+        // web listing links to itself (the Telegram message can't be edited — it's
+        // the seller's, not the bot's).
+        try {
+          const linkM = String(product.description || '').match(/\?p=(\d+)/);
+          if (linkM && linkM[1] !== String(result.id)) {
+            const fixedDesc = product.description.replace(/\?p=\d+/g, '?p=' + result.id);
+            db.prepare("UPDATE products SET description = ? WHERE id = ?").run(fixedDesc, result.id);
+            console.log(`[Scraper] Rewrote copied link ?p=${linkM[1]} → ?p=${result.id} on product ${result.id}`);
+          }
+        } catch (e) { console.error('[Scraper] link-fix error:', e.message); }
         // Track for follow-up photo linking
         if (fromId) {
           recentProducts.set(fromId, { productId: result.id, timestamp: Date.now() });
