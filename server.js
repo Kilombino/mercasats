@@ -533,6 +533,7 @@ const REGIONS = [
   { id: 'galicia', name: 'Galicia', emoji: '🐙' },
   { id: 'tenerife', name: 'Tenerife', emoji: '🌋' },
   { id: 'madrid', name: 'Madrid', emoji: '🐻' },
+  { id: 'malaga', name: 'Málaga', emoji: '⛪' },
   { id: 'sensezna', name: 'Sense zona', emoji: '🌍' },
 ];
 
@@ -899,6 +900,7 @@ app.get('/api/regions', (req, res) => {
     { id: 'galicia', name: 'Galicia', emoji: '🐙' },
     { id: 'tenerife', name: 'Tenerife', emoji: '🌋' },
     { id: 'madrid', name: 'Madrid', emoji: '🐻' },
+    { id: 'malaga', name: 'Málaga', emoji: '⛪' },
     { id: 'sensezna', name: 'Sense zona', emoji: '🌍' },
   ];
   res.json(regions);
